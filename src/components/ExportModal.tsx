@@ -138,15 +138,16 @@ export const ExportModal: React.FC<Props> = ({
     ) => {
       const elapsed = Math.max(0, time - line.startTime);
 
-      // Tham chiếu kích thước Preview thực tế trên UI (chuẩn CSS 580px h -> 326.25px w với 9:16)
-      const previewWidth = options.aspectRatio === '9:16' ? 326.25 : options.aspectRatio === '1:1' ? 500 : 720;
-      const scaleFactor = width / previewWidth;
+      // Tham chiếu kích thước Virtual Canvas chuẩn xác 100% với KineticCanvas
+      const virtualWidth = options.aspectRatio === '9:16' ? 360 : options.aspectRatio === '1:1' ? 540 : 640;
+      const scaleFactor = width / virtualWidth;
       const baseFontSize = Math.round(options.fontSize * scaleFactor);
 
-      const rawWords = line.text.trim().split(/\s+/).filter(Boolean);
-      if (rawWords.length === 0) return;
+      // Tách theo đoạn văn bản (hỗ trợ nếu người dùng gõ Enter thủ công)
+      const rawParagraphs = line.text.split('\n').map((p) => p.trim()).filter(Boolean);
+      if (rawParagraphs.length === 0) return;
 
-      const words = rawWords.map((w) => {
+      const words = line.text.trim().split(/\s+/).filter(Boolean).map((w) => {
         if (options.textCase === 'uppercase') return w.toUpperCase();
         if (options.textCase === 'lowercase') return w.toLowerCase();
         return w;
@@ -172,11 +173,14 @@ export const ExportModal: React.FC<Props> = ({
         ctx.shadowBlur = 0;
       }
 
-      // Giới hạn vùng an toàn (Safe Zone): TikTok 9:16 cách mép 60px mỗi bên = 960px
-      const maxTextWidth = options.aspectRatio === '9:16' ? (width - 120 * (width / 1080)) * 0.90 : width * 0.85;
+      // Giới hạn vùng an toàn (Safe Zone): Khớp tuyệt đối với Virtual Canvas
+      // 9:16: virtualWidth = 360, safe width = 320, max-w-[85%] = 272px
+      // 1080p: scaleFactor = 3.0 -> maxTextWidth = 272 * 3.0 = 816px
+      const maxTextWidth = options.aspectRatio === '9:16' ? (width - 120 * (width / 1080)) * 0.85 : width * 0.85;
 
       // Đo kích thước từ và chỉ co chữ nếu có từ đơn vượt quá chiều rộng an toàn
-      ctx.font = `${options.fontWeight} ${baseFontSize}px "${options.fontFamily}", sans-serif`;
+      const fontFamilyName = options.fontFamily.includes(' ') ? `"${options.fontFamily}"` : options.fontFamily;
+      ctx.font = `${options.fontWeight} ${baseFontSize}px ${fontFamilyName}, sans-serif`;
       if ('letterSpacing' in ctx && options.letterSpacing) {
         (ctx as any).letterSpacing = `${options.letterSpacing}em`;
       }
@@ -189,7 +193,7 @@ export const ExportModal: React.FC<Props> = ({
 
       const fontScale = longestWordW > maxTextWidth ? maxTextWidth / longestWordW : 1;
       const effectiveFontSize = Math.round(baseFontSize * fontScale);
-      ctx.font = `${options.fontWeight} ${effectiveFontSize}px "${options.fontFamily}", sans-serif`;
+      ctx.font = `${options.fontWeight} ${effectiveFontSize}px ${fontFamilyName}, sans-serif`;
 
       // Chia câu thành các dòng (Word Wrapping) y hệt như HTML trên giao diện Preview
       const wrapWords = (wordsList: string[], maxW: number): string[][] => {
@@ -218,7 +222,17 @@ export const ExportModal: React.FC<Props> = ({
         return result;
       };
 
-      const lines = wrapWords(words, maxTextWidth);
+      // Hỗ trợ cả ngắt dòng thủ công theo Enter và tự động ngắt dòng
+      const lines: string[][] = [];
+      rawParagraphs.forEach((para) => {
+        const paraWords = para.split(/\s+/).filter(Boolean).map((w) => {
+          if (options.textCase === 'uppercase') return w.toUpperCase();
+          if (options.textCase === 'lowercase') return w.toLowerCase();
+          return w;
+        });
+        const wrapped = wrapWords(paraWords, maxTextWidth);
+        lines.push(...wrapped);
+      });
       const lineHeight = effectiveFontSize * (options.lineHeight || 1.35);
       const totalBlockHeight = (lines.length - 1) * lineHeight;
       const centerY = height / 2;

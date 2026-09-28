@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LyricLine, StylingOptions } from '../types';
+import { LyricLine, StylingOptions, AspectRatio } from '../types';
 import { SafeZoneOverlay } from './SafeZoneOverlay';
 
 interface Props {
@@ -10,12 +10,45 @@ interface Props {
   canvasRef?: React.RefObject<HTMLDivElement | null>;
 }
 
+// Virtual Canvas Canonical Coordinate Reference
+const VIRTUAL_DIMS: Record<AspectRatio, { width: number; height: number }> = {
+  '9:16': { width: 360, height: 640 },
+  '1:1': { width: 540, height: 540 },
+  '16:9': { width: 640, height: 360 },
+};
+
 export const KineticCanvas: React.FC<Props> = ({
   lyrics,
   currentTime,
   options,
   canvasRef
 }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+
+  const virtualDims = VIRTUAL_DIMS[options.aspectRatio];
+
+  // Tự động tính toán hệ số scale GPU để canvas luôn vừa vặn hoàn hảo trong khung hiển thị
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const updateScale = () => {
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const pad = 24;
+      const maxW = Math.max(80, rect.width - pad);
+      const maxH = Math.max(80, rect.height - pad);
+      const s = Math.min(maxW / virtualDims.width, maxH / virtualDims.height);
+      setScale(Math.max(0.1, s));
+    };
+
+    updateScale();
+    const ro = new ResizeObserver(updateScale);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [virtualDims]);
+
   // Tìm câu hiện tại đang phát: kéo dài cho tới khi ô lyrics kế tiếp xuất hiện
   const currentLine = useMemo(() => {
     const sorted = [...lyrics].filter((l) => l.synced).sort((a, b) => a.startTime - b.startTime);
@@ -57,18 +90,6 @@ export const KineticCanvas: React.FC<Props> = ({
     }));
   }, [currentLine, options.textCase]);
 
-  // Aspect ratio class cố định kích thước vững chắc, không bao giờ co giãn theo nội dung chữ
-  const aspectClass = useMemo(() => {
-    switch (options.aspectRatio) {
-      case '9:16':
-        return 'h-[min(580px,calc(100%-2rem))] aspect-[9/16] w-auto shrink-0';
-      case '1:1':
-        return 'h-[min(500px,calc(100%-2rem))] aspect-square w-auto shrink-0';
-      case '16:9':
-        return 'w-[min(720px,calc(100%-2rem))] aspect-[16/9] h-auto shrink-0';
-    }
-  }, [options.aspectRatio]);
-
   // Base font style
   const fontStyle = useMemo(() => {
     return {
@@ -84,28 +105,42 @@ export const KineticCanvas: React.FC<Props> = ({
   }, [options]);
 
   return (
-    <div className="relative flex items-center justify-center w-full h-full p-4 overflow-hidden select-none">
-      {/* Studio Black Canvas Box - Khóa cứng kích thước tuyệt đối */}
-      <div 
-        ref={canvasRef}
-        id="sfumato-render-canvas"
-        className={`relative ${aspectClass} bg-black overflow-hidden rounded-2xl shadow-2xl border border-zinc-800/80 flex items-center justify-center`}
-        style={{ backgroundColor: '#000000' }}
+    <div ref={containerRef} className="relative flex items-center justify-center w-full h-full p-2 overflow-hidden select-none">
+      {/* Khung kích thước thực tế chiếm chỗ trong luồng hiển thị */}
+      <div
+        style={{
+          width: `${virtualDims.width * scale}px`,
+          height: `${virtualDims.height * scale}px`,
+        }}
+        className="relative flex items-center justify-center shrink-0"
       >
-        {/* Safe Zone Simulation */}
-        <SafeZoneOverlay aspectRatio={options.aspectRatio} show={options.showSafeZone} />
-
-        {/* Trung Tâm: CHỈ DUY NHẤT LỜI BÀI HÁT (LYRICS) NGHỆ THUẬT */}
+        {/* Studio Black Canvas Box - Khóa cứng tọa độ ảo tuyệt đối */}
         <div 
-          className="relative z-10 w-full h-full flex flex-col justify-center items-center text-center overflow-hidden"
+          ref={canvasRef}
+          id="sfumato-render-canvas"
+          className="relative bg-black overflow-hidden rounded-2xl shadow-2xl border border-zinc-800/80 flex items-center justify-center shrink-0"
           style={{ 
-            textAlign: options.alignment,
-            paddingTop: options.aspectRatio === '9:16' ? '11.46%' : '1.5rem',
-            paddingBottom: options.aspectRatio === '9:16' ? '14.58%' : '1.5rem',
-            paddingLeft: options.aspectRatio === '9:16' ? '5.56%' : '1.5rem',
-            paddingRight: options.aspectRatio === '9:16' ? '5.56%' : '1.5rem',
+            backgroundColor: '#000000',
+            width: `${virtualDims.width}px`,
+            height: `${virtualDims.height}px`,
+            transform: `scale(${scale})`,
+            transformOrigin: 'center center',
           }}
         >
+          {/* Safe Zone Simulation */}
+          <SafeZoneOverlay aspectRatio={options.aspectRatio} show={options.showSafeZone} />
+
+          {/* Trung Tâm: CHỈ DUY NHẤT LỜI BÀI HÁT (LYRICS) NGHỆ THUẬT */}
+          <div 
+            className="relative z-10 w-full h-full flex flex-col justify-center items-center text-center overflow-hidden"
+            style={{ 
+              textAlign: options.alignment,
+              paddingTop: options.aspectRatio === '9:16' ? '11.46%' : '1.5rem',
+              paddingBottom: options.aspectRatio === '9:16' ? '14.58%' : '1.5rem',
+              paddingLeft: options.aspectRatio === '9:16' ? '5.56%' : '1.5rem',
+              paddingRight: options.aspectRatio === '9:16' ? '5.56%' : '1.5rem',
+            }}
+          >
           <AnimatePresence mode="wait">
             {currentLine ? (
               <motion.div
@@ -355,7 +390,7 @@ export const KineticCanvas: React.FC<Props> = ({
                       }
                     }}
                     exit={{ scaleY: 0.4, scaleX: 1.8, opacity: 0, transition: { duration: 0.2 } }}
-                    className="max-w-[92%] font-black leading-tight select-none"
+                    className="max-w-[85%] font-black leading-tight select-none whitespace-pre-line"
                     style={{
                       ...fontStyle,
                       fontSize: `${options.fontSize * 1.2}px`,
@@ -382,7 +417,7 @@ export const KineticCanvas: React.FC<Props> = ({
                       }
                     }}
                     exit={{ scale: 0.8, opacity: 0, filter: 'blur(10px)', transition: { duration: 0.2 } }}
-                    className="max-w-[95%] font-black leading-tight drop-shadow-[0_0_20px_rgba(255,255,255,0.4)]"
+                    className="max-w-[85%] font-black leading-tight drop-shadow-[0_0_20px_rgba(255,255,255,0.4)] whitespace-pre-line"
                     style={{
                       ...fontStyle,
                       fontSize: `${options.fontSize * 1.2}px`,
@@ -416,7 +451,7 @@ export const KineticCanvas: React.FC<Props> = ({
                       transition: { duration: 0.7, ease: [0.16, 1, 0.3, 1] }
                     }}
                     exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.3 } }}
-                    className="max-w-[92%] font-extrabold animate-float leading-tight select-none"
+                    className="max-w-[85%] font-extrabold animate-float leading-tight select-none whitespace-pre-line"
                     style={{
                       ...fontStyle,
                       fontSize: `${options.fontSize * 1.15}px`,
@@ -439,7 +474,7 @@ export const KineticCanvas: React.FC<Props> = ({
                       transition: { duration: 0.45, ease: 'easeOut' }
                     }}
                     exit={{ opacity: 0, filter: 'blur(8px)', transition: { duration: 0.25 } }}
-                    className="max-w-[90%] leading-relaxed tracking-wider select-none"
+                    className="max-w-[85%] leading-relaxed tracking-wider select-none whitespace-pre-line"
                     style={{
                       ...fontStyle,
                       fontSize: `${options.fontSize}px`,
@@ -463,7 +498,7 @@ export const KineticCanvas: React.FC<Props> = ({
                       transition: { duration: 0.95, ease: [0.16, 1, 0.3, 1] }
                     }}
                     exit={{ opacity: 0, filter: 'blur(20px)', scale: 1.05 }}
-                    className="max-w-[92%] leading-relaxed select-none animate-pulse-subtle"
+                    className="max-w-[85%] leading-relaxed select-none animate-pulse-subtle whitespace-pre-line"
                     style={{ ...fontStyle, fontSize: `${options.fontSize}px` }}
                   >
                     {currentLine.text}
@@ -485,5 +520,6 @@ export const KineticCanvas: React.FC<Props> = ({
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 };

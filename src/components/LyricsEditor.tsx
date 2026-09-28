@@ -330,23 +330,26 @@ export const LyricsEditor: React.FC<Props> = ({
                   {/* Text display / Inline Edit */}
                   {isEditing ? (
                     <div className="space-y-1.5">
-                      <input
-                        type="text"
+                      <textarea
                         value={editingText}
                         onChange={(e) => setEditingText(e.target.value)}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') saveEditLine(line.id);
+                          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                            e.preventDefault();
+                            saveEditLine(line.id);
+                          }
                           if (e.key === 'Escape') cancelEditLine();
                         }}
                         autoFocus
-                        placeholder="Nhập lời bài hát (tiếng Việt có dấu)..."
-                        className="w-full bg-black border border-emerald-500/70 rounded-lg px-2.5 py-1.5 text-white font-sans text-xs focus:outline-none"
+                        rows={Math.min(4, Math.max(2, editingText.split('\n').length))}
+                        placeholder="Nhập lời bài hát (Enter: xuống dòng, Ctrl+Enter: Lưu)..."
+                        className="w-full bg-black border border-emerald-500/70 rounded-lg px-2.5 py-1.5 text-white font-sans text-xs focus:outline-none resize-none leading-relaxed"
                       />
                       <div className="text-[10px] text-zinc-500 flex justify-between">
-                        <span>Nhấn Enter để lưu • Esc để hủy</span>
+                        <span>Enter: xuống dòng • Ctrl+Enter: Lưu</span>
                         <button
                           onClick={() => saveEditLine(line.id)}
-                          className="text-emerald-400 hover:underline"
+                          className="text-emerald-400 hover:underline font-semibold"
                         >
                           Lưu ngay
                         </button>
@@ -362,10 +365,10 @@ export const LyricsEditor: React.FC<Props> = ({
                       className="font-medium text-zinc-200 cursor-pointer text-sm leading-snug hover:text-white group flex items-center justify-between"
                       title="Click đúp để sửa lời"
                     >
-                      <span className={line.text ? '' : 'italic text-zinc-600'}>
+                      <span className={`whitespace-pre-line ${line.text ? '' : 'italic text-zinc-600'}`}>
                         {line.text || '(Chưa có lời - Click đúp để nhập)'}
                       </span>
-                      <Edit3 size={11} className="opacity-0 group-hover:opacity-60 text-zinc-400 transition" />
+                      <Edit3 size={11} className="opacity-0 group-hover:opacity-60 text-zinc-400 transition shrink-0 ml-2" />
                     </div>
                   )}
 
