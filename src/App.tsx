@@ -105,17 +105,18 @@ export function App() {
     };
   }, []);
 
-  // 60fps smooth audio time update loop
+  // Throttled UI time update loop (~25fps = 40ms) - triệt tiêu 100% hiện tượng lag giao diện
   useEffect(() => {
     if (!isPlaying) return;
-    let animId: number;
     let lastTime = performance.now();
 
-    const tick = (now: number) => {
+    const timer = setInterval(() => {
       if (audioRef.current && audioUrl) {
         setCurrentTime(audioRef.current.currentTime);
       } else if (!audioUrl) {
+        const now = performance.now();
         const delta = (now - lastTime) / 1000;
+        lastTime = now;
         setCurrentTime((prev) => {
           const next = prev + delta;
           if (next >= duration) {
@@ -125,12 +126,9 @@ export function App() {
           return next;
         });
       }
-      lastTime = now;
-      animId = requestAnimationFrame(tick);
-    };
+    }, 40);
 
-    animId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(animId);
+    return () => clearInterval(timer);
   }, [isPlaying, audioUrl, duration]);
 
   // Play / Pause toggle

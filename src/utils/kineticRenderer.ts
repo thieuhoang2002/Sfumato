@@ -1,6 +1,19 @@
 import { LyricLine, StylingOptions } from '../types';
 
-export function getCanvasDimensions(aspectRatio: '9:16' | '1:1' | '16:9'): { width: number; height: number } {
+export function getCanvasDimensions(
+  aspectRatio: '9:16' | '1:1' | '16:9',
+  forPreview: boolean = false
+): { width: number; height: number } {
+  if (forPreview) {
+    switch (aspectRatio) {
+      case '9:16':
+        return { width: 540, height: 960 };
+      case '1:1':
+        return { width: 540, height: 540 };
+      case '16:9':
+        return { width: 960, height: 540 };
+    }
+  }
   switch (aspectRatio) {
     case '9:16':
       return { width: 1080, height: 1920 };
@@ -45,6 +58,9 @@ function wrapWords(ctx: CanvasRenderingContext2D, wordsList: string[], maxW: num
   }
   return result;
 }
+
+// Cache tính toán ngắt dòng để loại bỏ triệt để overhead đo chữ mỗi frame 60fps
+const lineWrapCache = new Map<string, string[][]>();
 
 /**
  * Single source of truth renderer for Kinetic Lyrics across:
@@ -108,27 +124,38 @@ export function renderKineticFrame(
     (ctx as any).letterSpacing = `${options.letterSpacing}em`;
   }
 
-  let longestWordW = 0;
-  allWords.forEach((w) => {
-    const wW = ctx.measureText(w).width;
-    if (wW > longestWordW) longestWordW = wW;
-  });
+  // Tận dụng cache để không phải đo chữ lặp lại 60 lần/giây
+  const cacheKey = `${line.id}_${line.text}_${baseFontSize}_${options.fontFamily}_${options.fontWeight}_${options.letterSpacing}_${options.textCase}_${Math.round(maxTextWidth)}`;
+  let lines = lineWrapCache.get(cacheKey);
 
-  const fontScale = longestWordW > maxTextWidth ? maxTextWidth / longestWordW : 1;
-  const effectiveFontSize = Math.round(baseFontSize * fontScale);
-  ctx.font = `${options.fontWeight} ${effectiveFontSize}px ${fontName}, sans-serif`;
-
-  // Chia thành các dòng (hỗ trợ cả Enter thủ công lẫn tự động bọc dòng)
-  const lines: string[][] = [];
-  rawParagraphs.forEach((para) => {
-    const paraWords = para.split(/\s+/).filter(Boolean).map((w) => {
-      if (options.textCase === 'uppercase') return w.toUpperCase();
-      if (options.textCase === 'lowercase') return w.toLowerCase();
-      return w;
+  if (!lines) {
+    let longestWordW = 0;
+    allWords.forEach((w) => {
+      const wW = ctx.measureText(w).width;
+      if (wW > longestWordW) longestWordW = wW;
     });
-    const wrapped = wrapWords(ctx, paraWords, maxTextWidth);
-    lines.push(...wrapped);
-  });
+
+    const fontScale = longestWordW > maxTextWidth ? maxTextWidth / longestWordW : 1;
+    const effectiveFontSize = Math.round(baseFontSize * fontScale);
+    ctx.font = `${options.fontWeight} ${effectiveFontSize}px ${fontName}, sans-serif`;
+
+    lines = [];
+    rawParagraphs.forEach((para) => {
+      const paraWords = para.split(/\s+/).filter(Boolean).map((w) => {
+        if (options.textCase === 'uppercase') return w.toUpperCase();
+        if (options.textCase === 'lowercase') return w.toLowerCase();
+        return w;
+      });
+      const wrapped = wrapWords(ctx, paraWords, maxTextWidth);
+      lines!.push(...wrapped);
+    });
+
+    if (lineWrapCache.size > 150) lineWrapCache.clear();
+    lineWrapCache.set(cacheKey, lines);
+  }
+
+  const effectiveFontSize = baseFontSize;
+  ctx.font = `${options.fontWeight} ${effectiveFontSize}px ${fontName}, sans-serif`;
 
   const lineHeight = effectiveFontSize * (options.lineHeight || 1.35);
   const totalBlockHeight = (lines.length - 1) * lineHeight;

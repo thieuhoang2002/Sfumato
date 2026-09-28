@@ -34,7 +34,8 @@ export const KineticCanvas: React.FC<Props> = ({
     return null;
   }, [lyrics, currentTime]);
 
-  const dims = getCanvasDimensions(options.aspectRatio);
+  // Dùng độ phân giải Preview Retina tối ưu (540x960) siêu mượt, loại bỏ lag GPU
+  const dims = getCanvasDimensions(options.aspectRatio, true);
 
   // Vẽ chuẩn xác 100% bằng canvas engine chung
   useEffect(() => {
