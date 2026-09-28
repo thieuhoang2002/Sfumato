@@ -92,33 +92,7 @@ export const KineticCanvas: React.FC<Props> = ({
         className={`relative ${aspectClass} bg-black overflow-hidden rounded-2xl shadow-2xl border border-zinc-800/80 flex items-center justify-center transition-all duration-300`}
         style={{ backgroundColor: '#000000' }}
       >
-        {/* 1. Lớp phủ hạt phim 35mm (Film Grain) */}
-        {options.enableFilmGrain && (
-          <div 
-            className="absolute inset-0 pointer-events-none opacity-[0.16] mix-blend-screen z-20"
-            style={{
-              backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
-            }}
-          />
-        )}
-
-        {/* 2. Hiệu ứng Vệt cháy phim (Film Burn / Light Leak) khi chuyển câu */}
-        {options.filmBurnEffect && currentLine && (
-          <div
-            key={`burn-${currentLine.id}`}
-            className="absolute inset-0 pointer-events-none z-20 animate-film-leak mix-blend-screen"
-            style={{
-              background: 'radial-gradient(circle at 75% 25%, rgba(251, 146, 60, 0.45) 0%, rgba(244, 63, 94, 0.25) 40%, transparent 70%)',
-            }}
-          />
-        )}
-
-        {/* 3. Hiệu ứng CRT Scanlines Retro */}
-        {options.crtScanlines && (
-          <div className="absolute inset-0 pointer-events-none crt-scanlines opacity-25 z-20" />
-        )}
-
-        {/* 4. Safe Zone Simulation */}
+        {/* Safe Zone Simulation */}
         <SafeZoneOverlay aspectRatio={options.aspectRatio} show={options.showSafeZone} />
 
         {/* 5. Trung Tâm: CHỈ DUY NHẤT LỜI BÀI HÁT (LYRICS) NGHỆ THUẬT */}

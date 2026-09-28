@@ -19,7 +19,7 @@ export function App() {
   // Styling state (WOW Disruptive Defaults)
   const [styling, setStyling] = useState<StylingOptions>({
     fontFamily: 'Unbounded',
-    fontSize: 30,
+    fontSize: 26,
     fontWeight: 900,
     letterSpacing: 0.02,
     textColor: '#FFFFFF',
@@ -30,13 +30,13 @@ export function App() {
     motionPreset: 'shatter-assemble',
     aspectRatio: '9:16',
     showSafeZone: true,
-    enableFilmGrain: true,
-    filmBurnEffect: true,
+    enableFilmGrain: false,
+    filmBurnEffect: false,
     chromeReflect: true,
-    cameraShake: true,
+    cameraShake: false,
     crtScanlines: false,
     heroWordAccent: 'scale',
-    chromaticAberration: true,
+    chromaticAberration: false,
     textCase: 'none',
   });
 
