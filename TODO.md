@@ -1,99 +1,91 @@
 # 📋 TODO — Danh sách công việc dự án Sfumato
 
-> File quản lý công việc và tiến độ vi mô của Sfumato. Các task được phân loại chi tiết theo trạng thái, độ ưu tiên và module.
+> File quản lý công việc và tiến độ vi mô của Sfumato (スラマート) — IDE & Terminal Lyric Video Studio.
 
 ---
 
 ## 🚦 Trạng thái hiện tại
-- **Phiên bản hiện hành**: `v1.0.0 (MVP Release)`
+- **Phiên bản hiện hành**: `v0.2.0 (IDE & Terminal Studio Release)`
 - **Tình trạng Build**: `PASS` (`npm run build` không phát sinh lỗi TypeScript/Vite)
 - **Tình trạng Server Dev**: Đang chạy tại `http://localhost:5173/`
 
 ---
 
-## ✅ ĐÃ HOÀN THÀNH (Done - Phase 1 MVP)
+## ✅ ĐÃ HOÀN THÀNH (Done - v0.2.0)
 
-### 1. Kiến trúc & Nền tảng (Infrastructure)
-- [x] Khởi tạo dự án Vite 6 + React 19 + TypeScript + TailwindCSS v3.
-- [x] Thiết lập cấu trúc thư mục chuẩn: `components/`, `types/`, `styles/`, `assets/`.
-- [x] Cài đặt `lucide-react` làm thư viện icon vector giao diện.
-- [x] Tích hợp `framer-motion` (v12) làm engine tính toán chuyển động chữ.
+### 1. Kiến trúc & Nền tảng IDE/Terminal
+- [x] Nâng cấp dự án sang React 19 + TypeScript + Vite + TailwindCSS v3.
+- [x] Tái cấu trúc pipeline render: Chuyển toàn bộ sang Canvas 2D thuần (`src/utils/kineticRenderer.ts`), loại bỏ hoàn toàn lag giật của React DOM preview.
+- [x] Bộ phân tích cú pháp mã nguồn (`src/utils/codeLayout.ts`) hỗ trợ 7 ngôn ngữ: TypeScript/JavaScript, Python, C/C++, Rust, HTML/CSS, Shell, Markdown.
+- [x] Thiết lập 6 theme lập trình viên kinh điển (`src/utils/themePresets.ts`): Tokyo Night, VS Code Dark+, Dracula, Monokai, Cyberpunk Neon, Minimal Monochrome.
+- [x] Hệ thống font Monospace tối ưu cho lập trình: *JetBrains Mono*, *Fira Code*, *Source Code Pro*.
 
-### 2. Quản lý Dữ liệu & Lyrics (Lyrics & Data Management)
-- [x] Tạo Data Schema cho `LyricLine` (id, text, startTime, endTime).
-- [x] Xây dựng cơ chế Import lời bài hát từ văn bản thô (Auto split theo dòng).
-- [x] Xây dựng cơ chế gõ phím `Space` để đồng bộ thời gian thực (Tap-to-Sync).
-- [x] Thêm/Sửa/Xóa từng dòng lyrics trực tiếp trên danh sách.
-- [x] Tính năng "Kéo dài liên tục" (Seamless duration): Câu trước hiển thị liên tục cho tới khi câu sau xuất hiện (`effectiveEnd = nextLine ? nextLine.startTime : endTime`).
-- [x] Nút "Nối liền các câu (Seamless)" để tự động dọn dẹp các khoảng hở thời gian.
+### 2. Quản lý Dữ liệu & Lyrics Bền Vững
+- [x] Data Schema cho `LyricLine` (id, text, startTime, endTime).
+- [x] Tap-to-Sync: Gõ phím `Space` theo nhịp bài hát để đồng bộ thời gian thực.
+- [x] Seamless Duration: Tự động kéo dài thời lượng câu hát cho đến câu kế tiếp.
+- [x] **Auto-save LocalStorage**: Tự động lưu nội dung lyrics vào `localStorage` (`sfumato_lyrics_autosave`), khôi phục nguyên vẹn khi tải lại trang.
+- [x] **Cảnh báo F5/Tắt trang**: Kích hoạt sự kiện `beforeunload` khi có dữ liệu lyrics nhằm chống mất bài.
+- [x] **Quản lý Audio**: Bổ sung tính năng Đổi file nhạc hoặc Xóa file nhạc linh hoạt.
 
-### 3. Canvas & Motion Presets Phá cách (Animation Engine)
-- [x] Xây dựng Canvas Preview tỷ lệ chuẩn dọc 9:16 (540x960 trên màn hình, render 1080x1920).
-- [x] Nền đen tuyệt đối `#000000` chuyên dụng cho hòa trộn CapCut Screen Blend Mode.
-- [x] Xây dựng bộ 10 Motion Presets phá cách:
-  - [x] `shatter-assemble`: Chữ tách rời từ 4 góc và bay tụ lại giữa tâm.
-  - [x] `cross-drift`: Các chữ xen kẽ trượt nghịch hướng và va chạm trung tâm.
-  - [x] `spatial-flip`: Lật 3D chiều không gian trục X/Y với chiều sâu phối cảnh `perspective(1000px)`.
-  - [x] `liquid-chrome`: Gradient bạc ánh kim lượn sóng động.
-  - [x] `editorial-spread`: Phong cách tạp chí thời trang, letter-spacing giãn nở rộng.
-  - [x] `glitch-cyber`: Hiệu ứng RGB split, rung giật gián đoạn kiểu Cyberpunk.
-  - [x] `brutalist-block`: Khối nền vàng chữ đen tương phản cao phong cách Brutalism.
-  - [x] `elastic-bounce`: Nảy đàn hồi vật lý sống động.
-  - [x] `neon-flicker`: Đèn Neon chớp nháy màu Cyan rực sáng.
-  - [x] `smoke-dissolve`: Hòa tan vào làn khói mờ ảo.
+### 3. Canvas 2D & Hiệu ứng Chuyển động Code
+- [x] Canvas chuẩn dọc 9:16 (Preview co giãn thông minh, Render 1080x1920 60fps).
+- [x] Nền đen `#000000` tuyệt đối tối ưu 1-click Screen blend trên CapCut, Premiere, TikTok.
+- [x] Thành phần IDE Editor hoàn chỉnh trên Canvas:
+  - File Tab Bar với icon file và tên file (`lyrics.ts`, `song.py`...).
+  - Line Numbers Gutter với số dòng căn chỉnh chuẩn xác.
+  - Active Line Indicator & highlight nền dòng đang phát.
+  - Hiệu ứng gõ máy chữ (Typewriter animation) tính toán theo tiến trình câu hát.
+  - Con trỏ mã nguồn nhấp nháy (Blinking Caret Cursor).
+  - Timestamps code comment (e.g. `// [00:15.200]`).
+- [x] Bật/Tắt lưới TikTok Safe Zone để căn chỉnh bố cục an toàn.
 
-### 4. Typography & Safe Zone (Design Polish)
-- [x] Tuyển chọn và tích hợp 10 Google Fonts hỗ trợ 100% tiếng Việt có dấu (`&subset=vietnamese`).
-- [x] Kiểm tra hiển thị dấu thanh tiếng Việt (ắ, ặ, ề, ỗ, ỹ...) trên toàn bộ 10 font: không bị lỗi fallback sang Arial.
-- [x] Bật/Tắt hiển thị lưới TikTok Safe Zone (Header, Right Actions, Bottom Metadata) để đảm bảo chữ không bị che.
-- [x] Loại bỏ hoàn toàn các watermark, chữ kỹ thuật nhỏ rác (`ROLL 16MM`, `EDITORIAL KINETIC`...) theo yêu cầu người dùng để khung hình sạch 100%.
-
-### 5. Xuất Video (Video Export Engine)
-- [x] Tích hợp `canvas.captureStream(60)` và `MediaRecorder` cho video 60fps mượt mà.
-- [x] Tích hợp Web Audio API (`AudioContext`, `MediaStreamAudioDestinationNode`) để muxing trực tiếp nhạc gốc vào video khi xuất.
-- [x] Toggle bật/tắt xuất kèm âm thanh trong Export Modal.
-- [x] Progress bar hiển thị tiến độ render theo % thời gian thực và tự động tải file `.webm`.
+### 4. Xuất Video (Video Export Engine)
+- [x] Tự động phát hiện codec: Ưu tiên MP4 (`video/mp4;codecs=avc1`), fallback WebM (`video/webm;codecs=vp9,opus`).
+- [x] Tích hợp Web Audio API muxing âm thanh bài hát gốc vào video xuất.
+- [x] Tích hợp thư viện `fix-webm-duration` sửa triệt để lỗi video WebM chỉ phát được 3 giây.
+- [x] Cảnh báo người dùng không ẩn tab/chuyển tab trong quá trình render video.
+- [x] Bổ sung nút **"Làm lại (Re-render)"** và **"Tải lại video"** trong Export Modal.
 
 ---
 
 ## ⏳ CẦN LÀM TIẾP THEO (In Progress & Backlog)
 
-### Ưu tiên cao (High Priority - Dự kiến v1.1.0 - v1.2.0)
-- [ ] **Interactive Waveform Timeline**:
-  - [ ] Tích hợp `wavesurfer.js` để hiển thị biểu đồ sóng âm thanh trực quan.
-  - [ ] Hiển thị các khối lyric bar trên timeline và cho phép kéo-thả để chỉnh `startTime`/`endTime`.
-- [ ] **Bổ sung định dạng xuất MP4 (H.264)**:
-  - [ ] Tích hợp WebCodecs API hoặc `@ffmpeg/ffmpeg` (Wasm) để chuyển đổi từ WebM sang MP4 trực tiếp trên client.
-  - [ ] Thêm tùy chọn chọn bitrate video (10Mbps, 20Mbps, 50Mbps).
-- [ ] **Lưu & Tải Dự án (Project Serialization)**:
-  - [ ] Export file cấu hình dự án `.sfumato` (dạng JSON chứa lyrics, timestamps, audio file dạng Base64 hoặc ObjectURL).
-  - [ ] Import lại file `.sfumato` để tiếp tục chỉnh sửa bất kỳ lúc nào.
+### Ưu tiên cao (High Priority - v0.3.0 - v0.4.0)
+- [ ] **Interactive Waveform Timeline (v0.3.0)**:
+  - [ ] Tích hợp `wavesurfer.js` để hiển thị biểu đồ sóng âm thanh trực quan ở chân màn hình.
+  - [ ] Cho phép kéo-thả mốc thời gian `startTime` và `endTime` trực tiếp trên sóng âm.
+- [ ] **Terminal CLI Log Mode (v0.4.0)**:
+  - [ ] Chế độ mô phỏng cửa sổ terminal console dòng lệnh Linux/macOS với tiền tố `$` hoặc `>`, log execution `[INFO]`, `[SUCCESS]`, progress bar ASCII `[=====>  ] 80%`.
+- [ ] **Custom Theme Builder (v0.4.0)**:
+  - [ ] Cho phép người dùng tự do cấu hình bảng màu syntax (keyword, string, comment, cursor, background).
+  - [ ] Bật/tắt Font Ligatures (`=>`, `===`, `!=`).
 
-### Ưu tiên trung bình (Medium Priority - v1.3.0 - v1.5.0)
-- [ ] **Word-level Karaoke Animation**:
-  - [ ] Hỗ trợ tách timestamp theo từng từ để tạo hiệu ứng chữ nhảy từng chữ một theo giọng ca sĩ (Word-by-word reveal).
-- [ ] **Custom Motion Editor**:
-  - [ ] Bổ sung thanh trượt điều chỉnh: Cường độ rung lắc, Thời gian delay giữa các ký tự, Bán kính phân rã.
-- [ ] **Multi-color Lyrics Support**:
-  - [ ] Cho phép tô màu riêng cho từ khóa nổi bật trong câu hát (Highlight keyword).
+### Ưu tiên trung bình (Medium Priority - v0.5.0 - v1.0.0)
+- [ ] **Word-level Typewriter Sync (v0.5.0)**:
+  - [ ] Gán timestamp chi tiết tới từng từ (word-level timestamps) để con trỏ code gõ theo từng âm tiết của ca khúc.
+  - [ ] Thử nghiệm Whisper AI Speech-to-Text để tự động phân tách từ (Forced Alignment).
+- [ ] **WebCodecs Native MP4 GPU Encoder (v1.0.0)**:
+  - [ ] Sử dụng WebCodecs API (`VideoEncoder`, `AudioEncoder`) và `mp4-muxer` để xuất MP4 native tốc độ siêu nhanh (faster-than-realtime).
 
-### Ưu tiên thấp (Nice to have - v2.0.0+)
-- [ ] **Tauri Desktop Build**:
-  - [ ] Thiết lập cấu hình Tauri v2 cho Windows (.exe / .msi) và macOS (.dmg).
-- [ ] **Hiệu ứng Hạt & Nền (Particles & Dust)**:
-  - [ ] Bổ sung hiệu ứng bụi phim cổ điển (Dust & Scratches) nhẹ trên nền đen.
-  - [ ] Hiệu ứng lóa sáng (Anamorphic Lens Flare).
+### Ưu tiên dài hạn (Long Term - v1.5.0+)
+- [ ] **Tauri Desktop Standalone App**: Đóng gói ứng dụng desktop cho Windows/macOS.
+- [ ] **Community Themes & Templates Cloud**: Thư viện chia sẻ theme và lyrics template.
 
 ---
 
 ## 🐞 Bọ cần theo dõi (Bug Tracker)
-*Xem chi tiết lịch sử sửa lỗi và các ca khó tại `FIXBUG_TODO.md`.*
+*Xem chi tiết lịch sử sửa lỗi và giải pháp tại `FIXBUG_TODO.md`.*
 
 | ID | Vấn đề | Mức độ | Trạng thái |
 | :--- | :--- | :--- | :--- |
-| `BUG-001` | Mất Canvas Preview do Panel Phải bung 100% | Nghiêm trọng | 🟢 Đã sửa |
-| `BUG-002` | Câu lyrics biến mất sau 3 giây, màn hình đen ngòm | Nghiêm trọng | 🟢 Đã sửa |
-| `BUG-003` | Lỗi vỡ font tiếng Việt có dấu do thiếu subset | Trung bình | 🟢 Đã sửa |
+| `BUG-001` | Mất Canvas Preview do Flexbox collapse | Nghiêm trọng | 🟢 Đã sửa |
+| `BUG-002` | Lyrics tự tắt sau 3 giây gây khoảng trống đen | Nghiêm trọng | 🟢 Đã sửa |
+| `BUG-003` | Lỗi vỡ font tiếng Việt có dấu | Trung bình | 🟢 Đã sửa |
 | `BUG-004` | Xuất video không có âm thanh đi kèm | Cao | 🟢 Đã sửa |
 | `BUG-005` | Xuất hiện các chữ phụ rác (metadata) trên video | Trung bình | 🟢 Đã sửa |
-| `BUG-006` | Trình duyệt Safari iOS chưa hỗ trợ ghi `video/webm` | Đang theo dõi | 🟡 Chờ giải pháp MP4 |
+| `BUG-007` | Xuất video bị nhân đôi thời lượng & đơ hiệu ứng | Nghiêm trọng | 🟢 Đã sửa |
+| `BUG-008` | Canvas preview bị lag do requestAnimationFrame & state loop | Nghiêm trọng | 🟢 Đã sửa |
+| `BUG-009` | Video WebM xuất ra bị dừng sau 3 giây dù file 24 giây | Nghiêm trọng | 🟢 Đã sửa |
+| `BUG-010` | Lỗi video khi người dùng ẩn tab trong lúc render | Cao | 🟢 Đã khắc phục (Banner cảnh báo) |
+| `BUG-011` | Mất dữ liệu lyrics khi người dùng vô tình F5/tắt trang | Cao | 🟢 Đã khắc phục (LocalStorage + BeforeUnload) |
