@@ -175,7 +175,7 @@ export function renderKineticFrame(
   if (options.showLineNumbers) gutterW += 28;
   if (options.showTimestamps) gutterW += 68;
   const availableW = virtualWidth - gutterW - 20;
-  const approxCharW = options.fontSize * 0.60;
+  const approxCharW = options.fontSize * 0.64;
   const maxCharsPerLine = Math.max(16, Math.floor(availableW / approxCharW));
 
   const codeLines: FormattedCodeLine[] = formatAllCodeLines(lyricsList, options.language, maxCharsPerLine);
@@ -332,14 +332,16 @@ export function renderKineticFrame(
 
       let curX = codeStartX;
 
-      // 1. Prefix
+      // 1. Prefix (dòng đầu) hoặc Indent (các dòng sau)
       if (sub.isFirst) {
         ctx.fillStyle = theme.keywordColor;
         ctx.fillText(line.prefix, curX, subY + singleLineH / 2);
+        curX += ctx.measureText(line.prefix).width;
+      } else {
+        ctx.fillStyle = theme.keywordColor;
+        ctx.fillText(line.indent, curX, subY + singleLineH / 2);
+        curX += ctx.measureText(line.indent).width;
       }
-      // Measure prefix width so sublines align identically
-      const prefixW = ctx.measureText(line.prefix).width;
-      curX += prefixW;
 
       // 2. Lyrics Text
       ctx.fillStyle = isActive ? theme.stringColor : theme.inactiveStringColor;

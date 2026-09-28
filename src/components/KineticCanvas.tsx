@@ -66,7 +66,7 @@ export const KineticCanvas: React.FC<Props> = ({
     if (options.showLineNumbers) gutterW += 28;
     if (options.showTimestamps) gutterW += 68;
     const availableW = virtualDims.width - gutterW - 20; // 20px padding right
-    const approxCharW = options.fontSize * 0.60;
+    const approxCharW = options.fontSize * 0.64;
     return Math.max(16, Math.floor(availableW / approxCharW));
   }, [virtualDims.width, options.showLineNumbers, options.showTimestamps, options.fontSize]);
 
@@ -351,9 +351,12 @@ export const KineticCanvas: React.FC<Props> = ({
                                   {line.prefix}
                                 </span>
                               ) : (
-                                /* Các dòng sau: khoảng thụt lề thụt vào đúng vị trí sau prefix */
-                                <span className="select-none shrink-0 opacity-0">
-                                  {line.prefix}
+                                /* Các dòng sau: thụt lề 2 dấu cách chuẩn code */
+                                <span
+                                  className="select-none shrink-0"
+                                  style={{ color: theme.keywordColor }}
+                                >
+                                  {line.indent}
                                 </span>
                               )}
 

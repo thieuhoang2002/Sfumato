@@ -1,4 +1,4 @@
-import { LyricLine, CodeLanguage, AspectRatio } from '../types';
+import { LyricLine, CodeLanguage } from '../types';
 import { formatTime } from './formatters';
 
 export interface FormattedSubline {
@@ -14,52 +14,61 @@ export interface FormattedCodeLine {
   timestampStr: string;
   prefix: string;
   suffix: string;
+  indent: string;
   sublines: FormattedSubline[];
   startTime: number;
   endTime: number;
   totalTextLength: number;
 }
 
-export function getLanguageTokens(lang: CodeLanguage): { prefix: string; suffix: string } {
+export function getLanguageTokens(lang: CodeLanguage): { prefix: string; suffix: string; indent: string } {
   switch (lang) {
     case 'typescript':
-      return { prefix: 'yield "', suffix: '";' };
+      return { prefix: 'yield "', suffix: '";', indent: '  ' };
     case 'python':
-      return { prefix: 'print("', suffix: '")' };
+      return { prefix: 'print("', suffix: '")', indent: '  ' };
     case 'bash':
-      return { prefix: '$ echo "', suffix: '"' };
+      return { prefix: '$ echo "', suffix: '"', indent: '  ' };
     case 'plain':
     default:
-      return { prefix: '"', suffix: '"' };
+      return { prefix: '"', suffix: '"', indent: '  ' };
   }
 }
 
 /**
- * Chia từ thành các dòng con (sublines) vừa khít khung màn hình
+ * Chia từ thành các dòng con (sublines) đảm bảo không bao giờ bị tràn lề phải
  */
 export function wrapLyricText(
   text: string,
   prefix: string,
-  maxCharsPerLine: number
+  suffix: string,
+  indent: string,
+  totalCodeChars: number
 ): FormattedSubline[] {
   const words = text.trim().split(/\s+/).filter(Boolean);
   if (words.length === 0) {
     return [{ text: '', isFirst: true, isLast: true }];
   }
 
+  // Giới hạn an toàn tuyệt đối: dòng 1 trừ prefix, các dòng sau trừ indent và suffix
+  const firstLineMaxChars = Math.max(8, totalCodeChars - prefix.length - 1);
+  const nextLineMaxChars = Math.max(8, totalCodeChars - indent.length - suffix.length - 1);
+
   const sublines: string[] = [];
   let currentWords: string[] = [];
-  // Dòng 1 có thêm prefix, các dòng sau có khoảng thụt lề
-  let currentLen = prefix.length;
+  let currentLen = 0;
+  let isFirstLine = true;
 
   for (let i = 0; i < words.length; i++) {
     const word = words[i];
     const wordLenWithSpace = currentWords.length === 0 ? word.length : word.length + 1;
+    const maxChars = isFirstLine ? firstLineMaxChars : nextLineMaxChars;
 
-    if (currentWords.length > 0 && currentLen + wordLenWithSpace > maxCharsPerLine) {
+    if (currentWords.length > 0 && currentLen + wordLenWithSpace > maxChars) {
       sublines.push(currentWords.join(' '));
       currentWords = [word];
       currentLen = word.length;
+      isFirstLine = false;
     } else {
       currentWords.push(word);
       currentLen += wordLenWithSpace;
@@ -83,13 +92,13 @@ export function wrapLyricText(
 export function formatAllCodeLines(
   lyrics: LyricLine[],
   lang: CodeLanguage,
-  maxCharsPerLine: number
+  totalCodeChars: number
 ): FormattedCodeLine[] {
   const sorted = [...lyrics].filter((l) => l.synced).sort((a, b) => a.startTime - b.startTime);
-  const { prefix, suffix } = getLanguageTokens(lang);
+  const { prefix, suffix, indent } = getLanguageTokens(lang);
 
   return sorted.map((line, idx) => {
-    const sublines = wrapLyricText(line.text, prefix, maxCharsPerLine);
+    const sublines = wrapLyricText(line.text, prefix, suffix, indent, totalCodeChars);
     return {
       id: line.id,
       index: idx,
@@ -97,6 +106,7 @@ export function formatAllCodeLines(
       timestampStr: `[${formatTime(line.startTime)}]`,
       prefix,
       suffix,
+      indent,
       sublines,
       startTime: line.startTime,
       endTime: line.endTime,

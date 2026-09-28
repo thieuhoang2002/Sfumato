@@ -3,6 +3,7 @@ import { X, Download, Film, CheckCircle, AlertCircle, Sparkles, Volume2, VolumeX
 import { LyricLine, StylingOptions } from '../types';
 import { formatTime } from '../utils/formatters';
 import { renderKineticFrame } from '../utils/kineticRenderer';
+import fixWebmDuration from 'fix-webm-duration';
 
 interface Props {
   isOpen: boolean;
@@ -28,6 +29,12 @@ export const ExportModal: React.FC<Props> = ({
   const [progress, setProgress] = useState(0);
   const [renderCurrentSec, setRenderCurrentSec] = useState(0);
   const [exportedUrl, setExportedUrl] = useState<string | null>(null);
+
+  const maxLyricTime = lyrics.length > 0
+    ? Math.max(...lyrics.map((l) => (l.endTime > l.startTime ? l.endTime : l.startTime + 3.5)))
+    : 0;
+  const validDuration = typeof duration === 'number' && !isNaN(duration) && duration > 0 ? duration : 0;
+  const totalDuration = Math.max(validDuration, maxLyricTime, 5);
 
   if (!isOpen) return null;
 
@@ -78,8 +85,13 @@ export const ExportModal: React.FC<Props> = ({
     if (includeAudio && audioUrl) {
       try {
         audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        if (audioCtx.state === 'suspended') {
+          await audioCtx.resume();
+        }
         audioElement = new Audio(audioUrl);
-        audioElement.crossOrigin = 'anonymous';
+        if (!audioUrl.startsWith('blob:')) {
+          audioElement.crossOrigin = 'anonymous';
+        }
         audioElement.currentTime = 0;
 
         audioSource = audioCtx.createMediaElementSource(audioElement);
@@ -109,10 +121,17 @@ export const ExportModal: React.FC<Props> = ({
       if (e.data.size > 0) chunks.push(e.data);
     };
 
-    mediaRecorder.onstop = () => {
-      const blob = new Blob(chunks, { type: 'video/webm' });
-      const url = URL.createObjectURL(blob);
-      setExportedUrl(url);
+    mediaRecorder.onstop = async () => {
+      const rawBlob = new Blob(chunks, { type: 'video/webm' });
+      try {
+        const fixedBlob = await fixWebmDuration(rawBlob, totalDuration * 1000, { logger: false });
+        const url = URL.createObjectURL(fixedBlob);
+        setExportedUrl(url);
+      } catch (err) {
+        console.warn('Could not patch webm duration:', err);
+        const url = URL.createObjectURL(rawBlob);
+        setExportedUrl(url);
+      }
       setIsExporting(false);
       setProgress(100);
 
@@ -120,17 +139,18 @@ export const ExportModal: React.FC<Props> = ({
         audioElement.pause();
       }
       if (audioCtx) {
-        audioCtx.close();
+        audioCtx.close().catch(() => {});
       }
     };
 
-    mediaRecorder.start();
+    mediaRecorder.start(250);
     if (audioElement) {
-      audioElement.play().catch(() => {});
+      audioElement.play().catch((err) => {
+        console.warn('Audio play failed in export:', err);
+      });
     }
 
     // Chuẩn xác 100% thời gian: dùng requestAnimationFrame đồng bộ theo Audio/Wall-clock
-    const totalDuration = Math.max(duration, 5);
     const startExportTime = performance.now();
     let animFrameId: number;
     let isTerminated = false;
@@ -139,37 +159,24 @@ export const ExportModal: React.FC<Props> = ({
       if (isTerminated) return;
 
       // Tính thời gian hiện tại chính xác tuyệt đối theo Audio Element (hoặc clock nếu câm)
-      let currentTime = 0;
-      if (audioElement && includeAudio) {
+      const wallClockTime = (performance.now() - startExportTime) / 1000;
+      let currentTime = wallClockTime;
+      if (audioElement && includeAudio && !audioElement.paused && !audioElement.ended && audioElement.currentTime > 0) {
         currentTime = audioElement.currentTime;
-      } else {
-        currentTime = (performance.now() - startExportTime) / 1000;
       }
 
       const pct = Math.min(99, Math.round((currentTime / totalDuration) * 100));
       setProgress(pct);
       setRenderCurrentSec(currentTime);
 
-      // 1. Tìm câu lyric hiện tại: kéo dài tới khi câu kế tiếp xuất hiện
+      // 1. Lọc và sắp xếp lời bài hát đã đồng bộ
       const sorted = [...lyrics].filter((l) => l.synced).sort((a, b) => a.startTime - b.startTime);
-      let current: LyricLine | null = null;
-      for (let i = 0; i < sorted.length; i++) {
-        const l = sorted[i];
-        const nextLine = sorted[i + 1];
-        const effectiveEnd = nextLine ? nextLine.startTime : (l.endTime > l.startTime ? l.endTime : l.startTime + 10);
-        if (currentTime >= l.startTime && currentTime < effectiveEnd) {
-          current = l;
-          break;
-        }
-      }
 
       // 2. Vẽ frame chuẩn xác 100% bằng engine thống nhất renderKineticFrame
       renderKineticFrame(ctx, width, height, sorted, currentTime, options, false);
 
-      // 4. Kiểm tra điều kiện kết thúc chính xác đúng 100% thời lượng bài hát
-      const hasEnded = audioElement && includeAudio 
-        ? (audioElement.ended || currentTime >= totalDuration)
-        : (currentTime >= totalDuration);
+      // 3. Kiểm tra điều kiện kết thúc: chỉ kết thúc khi đã hoàn thành trọn vẹn totalDuration
+      const hasEnded = currentTime >= totalDuration;
 
       if (!hasEnded) {
         animFrameId = requestAnimationFrame(renderLoop);
@@ -283,7 +290,7 @@ export const ExportModal: React.FC<Props> = ({
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
                 <span>
                   Đang kết xuất {includeAudio && audioUrl ? 'video & nhạc' : 'video'}:{' '}
-                  <b className="text-white font-mono">{formatTime(renderCurrentSec)}</b> / {formatTime(Math.max(duration, 5))}
+                  <b className="text-white font-mono">{formatTime(renderCurrentSec)}</b> / {formatTime(totalDuration)}
                 </span>
               </span>
               <span className="font-mono text-emerald-400 font-bold">{progress}%</span>
