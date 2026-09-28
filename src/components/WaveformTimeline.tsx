@@ -15,7 +15,7 @@ interface Props {
   onReset: () => void;
 }
 
-export const WaveformTimeline: React.FC<Props> = ({
+const WaveformTimelineComponent: React.FC<Props> = ({
   audioUrl,
   isPlaying,
   currentTime,
@@ -155,3 +155,5 @@ export const WaveformTimeline: React.FC<Props> = ({
     </div>
   );
 };
+
+export const WaveformTimeline = React.memo(WaveformTimelineComponent);

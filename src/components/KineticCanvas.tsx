@@ -1,18 +1,22 @@
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect, useMemo, useCallback } from 'react';
 import { LyricLine, StylingOptions } from '../types';
 import { renderKineticFrame, getCanvasDimensions } from '../utils/kineticRenderer';
 
 interface Props {
   lyrics: LyricLine[];
   currentTime: number;
+  isPlaying?: boolean;
+  getCurrentTime?: () => number;
   options: StylingOptions;
   canvasRef?: React.RefObject<HTMLCanvasElement | null>;
   className?: string;
 }
 
-export const KineticCanvas: React.FC<Props> = ({
+const KineticCanvasComponent: React.FC<Props> = ({
   lyrics,
   currentTime,
+  isPlaying = false,
+  getCurrentTime,
   options,
   canvasRef: externalCanvasRef,
   className = '',
@@ -20,40 +24,65 @@ export const KineticCanvas: React.FC<Props> = ({
   const internalCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const activeCanvasRef = externalCanvasRef || internalCanvasRef;
 
-  // Tìm câu hiện tại đang phát
-  const currentLine = useMemo(() => {
-    const sorted = [...lyrics].filter((l) => l.synced).sort((a, b) => a.startTime - b.startTime);
-    for (let i = 0; i < sorted.length; i++) {
-      const line = sorted[i];
-      const nextLine = sorted[i + 1];
+  // Dùng độ phân giải Preview Retina tối ưu (540x960) siêu mượt, loại bỏ lag GPU
+  const dims = getCanvasDimensions(options.aspectRatio, true);
+
+  // Danh sách lyrics đã sync và sắp xếp thời gian (chỉ tính lại khi lyrics thay đổi)
+  const sortedLyrics = useMemo(() => {
+    return [...lyrics].filter((l) => l.synced).sort((a, b) => a.startTime - b.startTime);
+  }, [lyrics]);
+
+  // Tìm câu hiện tại đang phát tại thời điểm time
+  const findActiveLine = useCallback((time: number): LyricLine | null => {
+    for (let i = 0; i < sortedLyrics.length; i++) {
+      const line = sortedLyrics[i];
+      const nextLine = sortedLyrics[i + 1];
       const effectiveEnd = nextLine ? nextLine.startTime : (line.endTime > line.startTime ? line.endTime : line.startTime + 10);
-      if (currentTime >= line.startTime && currentTime < effectiveEnd) {
+      if (time >= line.startTime && time < effectiveEnd) {
         return line;
       }
     }
     return null;
-  }, [lyrics, currentTime]);
+  }, [sortedLyrics]);
 
-  // Dùng độ phân giải Preview Retina tối ưu (540x960) siêu mượt, loại bỏ lag GPU
-  const dims = getCanvasDimensions(options.aspectRatio, true);
-
-  // Vẽ chuẩn xác 100% bằng canvas engine chung
-  useEffect(() => {
+  // Hàm vẽ 1 frame tại thời điểm time
+  const drawFrame = useCallback((time: number) => {
     const canvas = activeCanvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    const line = findActiveLine(time);
     renderKineticFrame(
       ctx,
       dims.width,
       dims.height,
-      currentLine,
-      currentTime,
+      line,
+      time,
       options,
       options.showSafeZone
     );
-  }, [currentLine, currentTime, options, dims, activeCanvasRef]);
+  }, [activeCanvasRef, dims.width, dims.height, findActiveLine, options]);
+
+  // Vòng lặp requestAnimationFrame độc lập khi đang Play:
+  // - Khi isPlaying = true: chạy vòng lặp 60fps/120fps độc lập KHÔNG phụ thuộc vào React re-render!
+  // - Khi isPlaying = false: vẽ ngay lập tức tại thời điểm currentTime khi pause hoặc tua timeline
+  useEffect(() => {
+    if (!isPlaying) {
+      drawFrame(currentTime);
+      return;
+    }
+
+    let animId: number;
+    const renderLoop = () => {
+      const nowTime = getCurrentTime ? getCurrentTime() : currentTime;
+      drawFrame(nowTime);
+      animId = requestAnimationFrame(renderLoop);
+    };
+
+    animId = requestAnimationFrame(renderLoop);
+    return () => cancelAnimationFrame(animId);
+  }, [isPlaying, currentTime, drawFrame, getCurrentTime]);
 
   // Tỷ lệ aspect CSS class cố định khung hình
   const aspectClass = useMemo(() => {
@@ -69,7 +98,7 @@ export const KineticCanvas: React.FC<Props> = ({
 
   return (
     <div className={`relative flex items-center justify-center w-full h-full p-2 overflow-hidden select-none ${className}`}>
-      {/* 1080p Master Canvas - Hiển thị tỷ lệ thu phóng chuẩn 100% theo GPU */}
+      {/* 540x960 Retina Master Canvas - Hiển thị tỷ lệ thu phóng chuẩn 100% theo GPU */}
       <canvas
         ref={activeCanvasRef}
         id="sfumato-render-canvas"
@@ -81,3 +110,26 @@ export const KineticCanvas: React.FC<Props> = ({
     </div>
   );
 };
+
+// React.memo tối ưu: Khi đang Play, KHÔNG re-render KineticCanvas vì RAF loop tự chạy 60fps
+export const KineticCanvas = React.memo(KineticCanvasComponent, (prevProps, nextProps) => {
+  // Khi cả hai đều đang play: chỉ re-render nếu options, lyrics hoặc styling đổi (bỏ qua currentTime)
+  if (prevProps.isPlaying && nextProps.isPlaying) {
+    if (
+      prevProps.options === nextProps.options &&
+      prevProps.lyrics === nextProps.lyrics &&
+      prevProps.className === nextProps.className
+    ) {
+      return true; // Skip React re-render
+    }
+  }
+
+  // Khi đang pause: re-render nếu currentTime đổi (khi scrub timeline) hoặc bất kỳ prop nào đổi
+  return (
+    prevProps.currentTime === nextProps.currentTime &&
+    prevProps.isPlaying === nextProps.isPlaying &&
+    prevProps.options === nextProps.options &&
+    prevProps.lyrics === nextProps.lyrics &&
+    prevProps.className === nextProps.className
+  );
+});

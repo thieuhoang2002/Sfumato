@@ -7,7 +7,7 @@ interface Props {
   onChange: (options: StylingOptions) => void;
 }
 
-export const StyleControls: React.FC<Props> = ({ options, onChange }) => {
+const StyleControlsComponent: React.FC<Props> = ({ options, onChange }) => {
   const update = <K extends keyof StylingOptions>(key: K, value: StylingOptions[K]) => {
     onChange({ ...options, [key]: value });
   };
@@ -154,3 +154,5 @@ export const StyleControls: React.FC<Props> = ({ options, onChange }) => {
     </div>
   );
 };
+
+export const StyleControls = React.memo(StyleControlsComponent);

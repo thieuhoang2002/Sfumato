@@ -59,8 +59,13 @@ function wrapWords(ctx: CanvasRenderingContext2D, wordsList: string[], maxW: num
   return result;
 }
 
-// Cache tính toán ngắt dòng để loại bỏ triệt để overhead đo chữ mỗi frame 60fps
-const lineWrapCache = new Map<string, string[][]>();
+// Cache tính toán ngắt dòng và kích cỡ từ để loại bỏ triệt để overhead đo chữ mỗi frame 60fps
+interface CachedWrapInfo {
+  lines: string[][];
+  wordWidths: Map<string, number>;
+  spaceW: number;
+}
+const lineWrapCache = new Map<string, CachedWrapInfo>();
 
 /**
  * Single source of truth renderer for Kinetic Lyrics across:
@@ -126,9 +131,9 @@ export function renderKineticFrame(
 
   // Tận dụng cache để không phải đo chữ lặp lại 60 lần/giây
   const cacheKey = `${line.id}_${line.text}_${baseFontSize}_${options.fontFamily}_${options.fontWeight}_${options.letterSpacing}_${options.textCase}_${Math.round(maxTextWidth)}`;
-  let lines = lineWrapCache.get(cacheKey);
+  let cachedData = lineWrapCache.get(cacheKey);
 
-  if (!lines) {
+  if (!cachedData) {
     let longestWordW = 0;
     allWords.forEach((w) => {
       const wW = ctx.measureText(w).width;
@@ -139,7 +144,7 @@ export function renderKineticFrame(
     const effectiveFontSize = Math.round(baseFontSize * fontScale);
     ctx.font = `${options.fontWeight} ${effectiveFontSize}px ${fontName}, sans-serif`;
 
-    lines = [];
+    const lines: string[][] = [];
     rawParagraphs.forEach((para) => {
       const paraWords = para.split(/\s+/).filter(Boolean).map((w) => {
         if (options.textCase === 'uppercase') return w.toUpperCase();
@@ -147,12 +152,27 @@ export function renderKineticFrame(
         return w;
       });
       const wrapped = wrapWords(ctx, paraWords, maxTextWidth);
-      lines!.push(...wrapped);
+      lines.push(...wrapped);
     });
 
+    const wordWidths = new Map<string, number>();
+    const spaceW = ctx.measureText(' ').width;
+    lines.forEach((lineWords) => {
+      lineWords.forEach((w) => {
+        if (!wordWidths.has(w)) {
+          wordWidths.set(w, ctx.measureText(w).width);
+        }
+      });
+    });
+
+    cachedData = { lines, wordWidths, spaceW };
     if (lineWrapCache.size > 150) lineWrapCache.clear();
-    lineWrapCache.set(cacheKey, lines);
+    lineWrapCache.set(cacheKey, cachedData);
   }
+
+  const lines = cachedData.lines;
+  const wordWidthsMap = cachedData.wordWidths;
+  const spaceW = cachedData.spaceW;
 
   const effectiveFontSize = baseFontSize;
   ctx.font = `${options.fontWeight} ${effectiveFontSize}px ${fontName}, sans-serif`;
@@ -179,13 +199,12 @@ export function renderKineticFrame(
 
   // 🌟 PRESET 1: Shatter & Assemble (Tụ lại từ 4 góc)
   if (preset === 'shatter-assemble') {
-    const spaceW = ctx.measureText(' ').width;
     let globalWordIdx = 0;
     const totalWords = allWords.length;
 
     lines.forEach((lineWords, lineIdx) => {
       const lineY = startY + lineIdx * lineHeight;
-      const wordWidths = lineWords.map((w) => ctx.measureText(w).width);
+      const wordWidths = lineWords.map((w) => wordWidthsMap.get(w) ?? ctx.measureText(w).width);
       const totalLineW = wordWidths.reduce((a, b) => a + b, 0) + (lineWords.length - 1) * spaceW;
       let currentX = (width - totalLineW) / 2;
 
@@ -221,12 +240,11 @@ export function renderKineticFrame(
   }
   // 🌟 PRESET 2: Cross Drift (Đan chéo đối kháng 2 bên)
   else if (preset === 'cross-drift') {
-    const spaceW = ctx.measureText(' ').width;
     let globalWordIdx = 0;
 
     lines.forEach((lineWords, lineIdx) => {
       const lineY = startY + lineIdx * lineHeight;
-      const wordWidths = lineWords.map((w) => ctx.measureText(w).width);
+      const wordWidths = lineWords.map((w) => wordWidthsMap.get(w) ?? ctx.measureText(w).width);
       const totalLineW = wordWidths.reduce((a, b) => a + b, 0) + (lineWords.length - 1) * spaceW;
       let currentX = (width - totalLineW) / 2;
 
@@ -256,12 +274,11 @@ export function renderKineticFrame(
   }
   // 🌟 PRESET 3: 3D Card Flip (Lật xoay bài 3D)
   else if (preset === 'card-flip-3d') {
-    const spaceW = ctx.measureText(' ').width;
     let globalWordIdx = 0;
 
     lines.forEach((lineWords, lineIdx) => {
       const lineY = startY + lineIdx * lineHeight;
-      const wordWidths = lineWords.map((w) => ctx.measureText(w).width);
+      const wordWidths = lineWords.map((w) => wordWidthsMap.get(w) ?? ctx.measureText(w).width);
       const totalLineW = wordWidths.reduce((a, b) => a + b, 0) + (lineWords.length - 1) * spaceW;
       let currentX = (width - totalLineW) / 2;
 
