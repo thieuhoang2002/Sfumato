@@ -28,6 +28,7 @@ export function App() {
     lineHeight: 1.35,
     alignment: 'center',
     motionPreset: 'shatter-assemble',
+    motionSpeed: 1.0,
     aspectRatio: '9:16',
     showSafeZone: true,
     enableFilmGrain: false,

@@ -1,6 +1,6 @@
 import React from 'react';
 import { StylingOptions, FontChoice, MotionPreset } from '../types';
-import { Type, Sparkles } from 'lucide-react';
+import { Type, Sparkles, Zap } from 'lucide-react';
 
 interface Props {
   options: StylingOptions;
@@ -69,6 +69,46 @@ export const StyleControls: React.FC<Props> = ({ options, onChange }) => {
               </span>
             </button>
           ))}
+        </div>
+
+        {/* Speed Adjustment Control */}
+        <div className="p-2.5 rounded-xl bg-zinc-900/40 border border-zinc-850 space-y-2 mt-2">
+          <div className="flex justify-between items-center text-zinc-400">
+            <span className="text-[11px] font-medium flex items-center space-x-1.5 text-zinc-300">
+              <Zap size={12} className="text-amber-400" />
+              <span>Tốc độ style (Speed)</span>
+            </span>
+            <span className="font-mono text-emerald-400 font-bold text-xs bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30">
+              {Number(options.motionSpeed || 1.0).toFixed(1)}x
+            </span>
+          </div>
+
+          <input
+            type="range"
+            min={0.4}
+            max={2.5}
+            step={0.1}
+            value={options.motionSpeed || 1.0}
+            onChange={(e) => update('motionSpeed', Number(e.target.value))}
+            className="w-full accent-emerald-400 h-1 bg-zinc-800 rounded-lg cursor-pointer"
+          />
+
+          {/* Quick Speed Pills */}
+          <div className="flex space-x-1.5">
+            {[0.5, 1.0, 1.5, 2.0].map((s) => (
+              <button
+                key={s}
+                onClick={() => update('motionSpeed', s)}
+                className={`flex-1 py-1 rounded text-[10px] font-mono transition border ${
+                  Math.abs((options.motionSpeed || 1.0) - s) < 0.05
+                    ? 'bg-zinc-800 border-emerald-500 text-emerald-400 font-bold'
+                    : 'bg-zinc-900/80 border-zinc-800 text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                {s}x
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
