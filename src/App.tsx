@@ -105,22 +105,32 @@ export function App() {
     };
   }, []);
 
-  // Timer simulation fallback if no audio file is uploaded yet
+  // 60fps smooth audio time update loop
   useEffect(() => {
-    let timer: any;
-    if (isPlaying && !audioUrl) {
-      timer = setInterval(() => {
+    if (!isPlaying) return;
+    let animId: number;
+    let lastTime = performance.now();
+
+    const tick = (now: number) => {
+      if (audioRef.current && audioUrl) {
+        setCurrentTime(audioRef.current.currentTime);
+      } else if (!audioUrl) {
+        const delta = (now - lastTime) / 1000;
         setCurrentTime((prev) => {
-          const next = prev + 0.05;
+          const next = prev + delta;
           if (next >= duration) {
             setIsPlaying(false);
             return 0;
           }
           return next;
         });
-      }, 50);
-    }
-    return () => clearInterval(timer);
+      }
+      lastTime = now;
+      animId = requestAnimationFrame(tick);
+    };
+
+    animId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animId);
   }, [isPlaying, audioUrl, duration]);
 
   // Play / Pause toggle
