@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Header } from './components/Header';
 import { KineticCanvas } from './components/KineticCanvas';
 import { LyricsEditor } from './components/LyricsEditor';
@@ -9,7 +9,6 @@ import { FullscreenPreview } from './components/FullscreenPreview';
 import { Maximize2 } from 'lucide-react';
 import { LyricLine, StylingOptions, AspectRatio, MotionPreset } from './types';
 import { parseLyricsText } from './utils/formatters';
-import { getSmoothAudioTime, resetAudioClock } from './utils/audioClock';
 
 const DEFAULT_SAMPLE_LYRICS = `Đêm buông xuống thành phố không còn ai
 Nét cọ ai vừa vẽ vết khói dài
@@ -75,27 +74,14 @@ export function App() {
   // Fullscreen Preview state
   const [isFullscreenPreview, setIsFullscreenPreview] = useState<boolean>(false);
 
-  // Hi-res audio clock & simulated playback tracking
-  const simulatedTimeRef = useRef<number>(0);
-  const lastSimulatedPerfRef = useRef<number>(performance.now());
-
-  // Cung cấp thời gian chuẩn xác 60fps/120fps cho Canvas mà KHÔNG gây re-render React UI
-  const getCurrentTime = useCallback(() => {
-    if (audioRef.current && audioUrl) {
-      return getSmoothAudioTime(audioRef.current);
-    }
-    if (!isPlaying) return simulatedTimeRef.current;
-    const now = performance.now();
-    const dt = (now - lastSimulatedPerfRef.current) / 1000;
-    lastSimulatedPerfRef.current = now;
-    simulatedTimeRef.current = Math.min(duration, simulatedTimeRef.current + dt);
-    return simulatedTimeRef.current;
-  }, [audioUrl, isPlaying, duration]);
-
-  // Khởi tạo audio element
+  // Initialize synth ambient audio preview if user doesn't have an audio file immediately
   useEffect(() => {
     const audio = new Audio();
     audioRef.current = audio;
+
+    const onTimeUpdate = () => {
+      setCurrentTime(audio.currentTime);
+    };
 
     const onLoadedMetadata = () => {
       setDuration(audio.duration);
@@ -104,39 +90,36 @@ export function App() {
     const onEnded = () => {
       setIsPlaying(false);
       setCurrentTime(0);
-      simulatedTimeRef.current = 0;
-      resetAudioClock(0);
       setIsSyncing(false);
     };
 
+    audio.addEventListener('timeupdate', onTimeUpdate);
     audio.addEventListener('loadedmetadata', onLoadedMetadata);
     audio.addEventListener('ended', onEnded);
 
     return () => {
+      audio.removeEventListener('timeupdate', onTimeUpdate);
       audio.removeEventListener('loadedmetadata', onLoadedMetadata);
       audio.removeEventListener('ended', onEnded);
       audio.pause();
     };
   }, []);
 
-  // Throttled UI time update loop (~16fps / 60ms) - chỉ để đồng bộ thanh timeline và danh sách lyrics
+  // Timer simulation fallback if no audio file is uploaded yet
   useEffect(() => {
-    if (!isPlaying) return;
-    lastSimulatedPerfRef.current = performance.now();
-
-    const timer = setInterval(() => {
-      if (audioRef.current && audioUrl) {
-        setCurrentTime(audioRef.current.currentTime);
-      } else if (!audioUrl) {
-        setCurrentTime(simulatedTimeRef.current);
-        if (simulatedTimeRef.current >= duration) {
-          setIsPlaying(false);
-          simulatedTimeRef.current = 0;
-          setCurrentTime(0);
-        }
-      }
-    }, 60);
-
+    let timer: any;
+    if (isPlaying && !audioUrl) {
+      timer = setInterval(() => {
+        setCurrentTime((prev) => {
+          const next = prev + 0.05;
+          if (next >= duration) {
+            setIsPlaying(false);
+            return 0;
+          }
+          return next;
+        });
+      }, 50);
+    }
     return () => clearInterval(timer);
   }, [isPlaying, audioUrl, duration]);
 
@@ -146,23 +129,17 @@ export function App() {
       if (isPlaying) {
         audioRef.current.pause();
         setIsPlaying(false);
-        resetAudioClock(audioRef.current.currentTime);
       } else {
-        resetAudioClock(audioRef.current.currentTime);
         audioRef.current.play();
         setIsPlaying(true);
       }
     } else {
-      lastSimulatedPerfRef.current = performance.now();
       setIsPlaying(!isPlaying);
     }
   };
 
   const handleSeek = (time: number) => {
     setCurrentTime(time);
-    simulatedTimeRef.current = time;
-    lastSimulatedPerfRef.current = performance.now();
-    resetAudioClock(time);
     if (audioRef.current && audioUrl) {
       audioRef.current.currentTime = time;
     }
@@ -390,8 +367,6 @@ export function App() {
           <KineticCanvas
             lyrics={lyrics}
             currentTime={currentTime}
-            isPlaying={isPlaying}
-            getCurrentTime={getCurrentTime}
             options={styling}
           />
         </main>
@@ -438,7 +413,6 @@ export function App() {
         currentTime={currentTime}
         duration={duration}
         isPlaying={isPlaying}
-        getCurrentTime={getCurrentTime}
         options={styling}
         onTogglePlay={togglePlay}
         onSeek={handleSeek}

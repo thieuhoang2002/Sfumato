@@ -11,7 +11,6 @@ interface Props {
   currentTime: number;
   duration: number;
   isPlaying: boolean;
-  getCurrentTime?: () => number;
   options: StylingOptions;
   onTogglePlay: () => void;
   onSeek: (time: number) => void;
@@ -24,7 +23,6 @@ export const FullscreenPreview: React.FC<Props> = ({
   currentTime,
   duration,
   isPlaying,
-  getCurrentTime,
   options,
   onTogglePlay,
   onSeek,
@@ -142,8 +140,6 @@ export const FullscreenPreview: React.FC<Props> = ({
         <KineticCanvas
           lyrics={lyrics}
           currentTime={currentTime}
-          isPlaying={isPlaying}
-          getCurrentTime={getCurrentTime}
           options={options}
         />
       </div>
