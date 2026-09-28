@@ -97,8 +97,14 @@ export const KineticCanvas: React.FC<Props> = ({
 
         {/* Trung Tâm: CHỈ DUY NHẤT LỜI BÀI HÁT (LYRICS) NGHỆ THUẬT */}
         <div 
-          className="relative z-10 w-full h-full px-6 py-12 flex flex-col justify-center items-center text-center overflow-hidden"
-          style={{ textAlign: options.alignment }}
+          className="relative z-10 w-full h-full flex flex-col justify-center items-center text-center overflow-hidden"
+          style={{ 
+            textAlign: options.alignment,
+            paddingTop: options.aspectRatio === '9:16' ? '11.46%' : '1.5rem',
+            paddingBottom: options.aspectRatio === '9:16' ? '14.58%' : '1.5rem',
+            paddingLeft: options.aspectRatio === '9:16' ? '5.56%' : '1.5rem',
+            paddingRight: options.aspectRatio === '9:16' ? '5.56%' : '1.5rem',
+          }}
         >
           <AnimatePresence mode="wait">
             {currentLine ? (
