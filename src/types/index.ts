@@ -52,7 +52,6 @@ export interface StylingOptions {
   lineHeight: number;
   alignment: 'center' | 'left' | 'right';
   motionPreset: MotionPreset;
-  motionSpeed: number; // 0.5x đến 2.0x (mặc định 1.0)
   aspectRatio: AspectRatio;
   showSafeZone: boolean;
   
