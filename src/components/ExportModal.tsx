@@ -35,6 +35,13 @@ export const ExportModal: React.FC<Props> = ({
     setProgress(0);
     setExportedUrl(null);
 
+    // Đảm bảo font chữ đã được nạp hoàn chỉnh vào document
+    try {
+      await document.fonts.ready;
+    } catch {
+      // Bỏ qua nếu môi trường không hỗ trợ font API
+    }
+
     // Kích thước xuất
     let width = 1080;
     let height = 1920;
@@ -130,7 +137,12 @@ export const ExportModal: React.FC<Props> = ({
       time: number
     ) => {
       const elapsed = Math.max(0, time - line.startTime);
-      const baseFontSize = Math.round(options.fontSize * (width / 420));
+
+      // Tham chiếu kích thước Preview thực tế trên UI (chuẩn CSS 580px h -> 326.25px w với 9:16)
+      const previewWidth = options.aspectRatio === '9:16' ? 326.25 : options.aspectRatio === '1:1' ? 500 : 720;
+      const scaleFactor = width / previewWidth;
+      const baseFontSize = Math.round(options.fontSize * scaleFactor);
+
       const rawWords = line.text.trim().split(/\s+/).filter(Boolean);
       if (rawWords.length === 0) return;
 
@@ -155,124 +167,197 @@ export const ExportModal: React.FC<Props> = ({
       // Thiết lập phát sáng Glow
       if (options.glowEffect) {
         ctx.shadowColor = 'rgba(255, 255, 255, 0.75)';
-        ctx.shadowBlur = options.glowIntensity * 25;
+        ctx.shadowBlur = Math.round(options.glowIntensity * 28 * scaleFactor);
       } else {
         ctx.shadowBlur = 0;
       }
 
-      // Đo độ rộng chữ và tự động co giãn nếu câu dài
-      ctx.font = `${options.fontWeight} ${baseFontSize}px "${options.fontFamily}", sans-serif`;
-      const spaceWidth = ctx.measureText(' ').width * 1.4;
-      const wordWidths = words.map((w) => ctx.measureText(w).width);
-      const totalSentenceWidth = wordWidths.reduce((a, b) => a + b, 0) + (words.length - 1) * spaceWidth;
+      // Giới hạn vùng an toàn (Safe Zone): TikTok 9:16 cách mép 60px mỗi bên = 960px
+      const maxTextWidth = options.aspectRatio === '9:16' ? (width - 120 * (width / 1080)) * 0.90 : width * 0.85;
 
-      const maxSafeWidth = width * 0.88;
-      const scaleRatio = totalSentenceWidth > maxSafeWidth ? maxSafeWidth / totalSentenceWidth : 1;
-      const effectiveFontSize = baseFontSize * scaleRatio;
+      // Đo kích thước từ và chỉ co chữ nếu có từ đơn vượt quá chiều rộng an toàn
+      ctx.font = `${options.fontWeight} ${baseFontSize}px "${options.fontFamily}", sans-serif`;
+      if ('letterSpacing' in ctx && options.letterSpacing) {
+        (ctx as any).letterSpacing = `${options.letterSpacing}em`;
+      }
+
+      let longestWordW = 0;
+      words.forEach((w) => {
+        const wW = ctx.measureText(w).width;
+        if (wW > longestWordW) longestWordW = wW;
+      });
+
+      const fontScale = longestWordW > maxTextWidth ? maxTextWidth / longestWordW : 1;
+      const effectiveFontSize = Math.round(baseFontSize * fontScale);
       ctx.font = `${options.fontWeight} ${effectiveFontSize}px "${options.fontFamily}", sans-serif`;
 
-      const finalSpaceWidth = ctx.measureText(' ').width * 1.2;
-      const finalWordWidths = words.map((w) => ctx.measureText(w).width);
-      const finalTotalWidth = finalWordWidths.reduce((a, b) => a + b, 0) + (words.length - 1) * finalSpaceWidth;
+      // Chia câu thành các dòng (Word Wrapping) y hệt như HTML trên giao diện Preview
+      const wrapWords = (wordsList: string[], maxW: number): string[][] => {
+        const result: string[][] = [];
+        let currentLineWords: string[] = [];
+        let currentLineWidth = 0;
+        const spaceW = ctx.measureText(' ').width;
 
-      let currentX = (width - finalTotalWidth) / 2;
+        for (const word of wordsList) {
+          const wW = ctx.measureText(word).width;
+          if (currentLineWords.length === 0) {
+            currentLineWords.push(word);
+            currentLineWidth = wW;
+          } else if (currentLineWidth + spaceW + wW <= maxW) {
+            currentLineWords.push(word);
+            currentLineWidth += spaceW + wW;
+          } else {
+            result.push(currentLineWords);
+            currentLineWords = [word];
+            currentLineWidth = wW;
+          }
+        }
+        if (currentLineWords.length > 0) {
+          result.push(currentLineWords);
+        }
+        return result;
+      };
+
+      const lines = wrapWords(words, maxTextWidth);
+      const lineHeight = effectiveFontSize * (options.lineHeight || 1.35);
+      const totalBlockHeight = (lines.length - 1) * lineHeight;
       const centerY = height / 2;
+      const startY = centerY - totalBlockHeight / 2;
 
       // 🌟 1. Shatter & Assemble (Tụ lại từ 4 góc)
       if (preset === 'shatter-assemble') {
-        words.forEach((word, idx) => {
-          const wWidth = finalWordWidths[idx];
-          const targetWordCenterX = currentX + wWidth / 2;
-          const angle = (idx / words.length) * Math.PI * 2;
-          const initialDist = 320 * (width / 420);
-          const initX = targetWordCenterX + Math.cos(angle) * initialDist;
-          const initY = centerY + Math.sin(angle) * initialDist;
-          const initRotate = (idx % 2 === 0 ? -1 : 1) * 0.45;
+        const spaceW = ctx.measureText(' ').width;
+        let globalWordIdx = 0;
+        const totalWords = words.length;
 
-          const p = Math.min(1, Math.max(0, (elapsed - idx * 0.04) / 0.42));
-          const ease = easeOutBack(p);
+        lines.forEach((lineWords, lineIdx) => {
+          const lineY = startY + lineIdx * lineHeight;
+          const wordWidths = lineWords.map((w) => ctx.measureText(w).width);
+          const totalLineW = wordWidths.reduce((a, b) => a + b, 0) + (lineWords.length - 1) * spaceW;
+          let currentX = (width - totalLineW) / 2;
 
-          const wordX = initX + (targetWordCenterX - initX) * ease;
-          const wordY = initY + (centerY - initY) * ease;
-          const wordRotate = initRotate * (1 - ease);
-          const wordScale = 2.0 - 1.0 * ease;
+          lineWords.forEach((word, wIdx) => {
+            const wWidth = wordWidths[wIdx];
+            const targetWordCenterX = currentX + wWidth / 2;
+            const angle = (globalWordIdx / totalWords) * Math.PI * 2;
+            const initialDist = 320 * scaleFactor;
+            const initX = targetWordCenterX + Math.cos(angle) * initialDist;
+            const initY = lineY + Math.sin(angle) * initialDist;
+            const initRotate = (globalWordIdx % 2 === 0 ? -1 : 1) * 0.45;
 
-          ctx.save();
-          ctx.translate(wordX, wordY);
-          ctx.rotate(wordRotate);
-          ctx.scale(wordScale, wordScale);
-          ctx.fillStyle = options.textColor;
-          ctx.fillText(word, 0, 0);
-          ctx.restore();
+            const p = Math.min(1, Math.max(0, (elapsed - globalWordIdx * 0.04) / 0.42));
+            const ease = easeOutBack(p);
 
-          currentX += wWidth + finalSpaceWidth;
+            const wordX = initX + (targetWordCenterX - initX) * ease;
+            const wordY = initY + (lineY - initY) * ease;
+            const wordRotate = initRotate * (1 - ease);
+            const wordScale = 2.0 - 1.0 * ease;
+
+            ctx.save();
+            ctx.translate(wordX, wordY);
+            ctx.rotate(wordRotate);
+            ctx.scale(wordScale, wordScale);
+            ctx.fillStyle = options.textColor;
+            ctx.fillText(word, 0, 0);
+            ctx.restore();
+
+            currentX += wWidth + spaceW;
+            globalWordIdx++;
+          });
         });
       }
       // 🌟 2. Cross Drift (Lao vào nhau từ 2 bên)
       else if (preset === 'cross-drift') {
-        words.forEach((word, idx) => {
-          const wWidth = finalWordWidths[idx];
-          const targetWordCenterX = currentX + wWidth / 2;
-          const isLeft = idx % 2 === 0;
-          const initOffset = isLeft ? -width * 0.65 : width * 0.65;
+        const spaceW = ctx.measureText(' ').width;
+        let globalWordIdx = 0;
 
-          const p = Math.min(1, Math.max(0, (elapsed - idx * 0.05) / 0.45));
-          const ease = easeOutBack(p);
+        lines.forEach((lineWords, lineIdx) => {
+          const lineY = startY + lineIdx * lineHeight;
+          const wordWidths = lineWords.map((w) => ctx.measureText(w).width);
+          const totalLineW = wordWidths.reduce((a, b) => a + b, 0) + (lineWords.length - 1) * spaceW;
+          let currentX = (width - totalLineW) / 2;
 
-          const wordX = targetWordCenterX + initOffset * (1 - ease);
-          const wordScaleX = 1 + 0.8 * (1 - ease);
+          lineWords.forEach((word, wIdx) => {
+            const wWidth = wordWidths[wIdx];
+            const targetWordCenterX = currentX + wWidth / 2;
+            const isLeft = globalWordIdx % 2 === 0;
+            const initOffset = isLeft ? -width * 0.65 : width * 0.65;
 
-          ctx.save();
-          ctx.translate(wordX, centerY);
-          ctx.scale(wordScaleX, 1);
-          ctx.fillStyle = options.textColor;
-          ctx.fillText(word, 0, 0);
-          ctx.restore();
+            const p = Math.min(1, Math.max(0, (elapsed - globalWordIdx * 0.05) / 0.45));
+            const ease = easeOutBack(p);
 
-          currentX += wWidth + finalSpaceWidth;
+            const wordX = targetWordCenterX + initOffset * (1 - ease);
+            const wordScaleX = 1 + 0.8 * (1 - ease);
+
+            ctx.save();
+            ctx.translate(wordX, lineY);
+            ctx.scale(wordScaleX, 1);
+            ctx.fillStyle = options.textColor;
+            ctx.fillText(word, 0, 0);
+            ctx.restore();
+
+            currentX += wWidth + spaceW;
+            globalWordIdx++;
+          });
         });
       }
       // 🌟 3. 3D Spatial Flip (Lật xoay 3D)
       else if (preset === 'card-flip-3d') {
-        words.forEach((word, idx) => {
-          const wWidth = finalWordWidths[idx];
-          const targetWordCenterX = currentX + wWidth / 2;
-          const p = Math.min(1, Math.max(0, (elapsed - idx * 0.06) / 0.48));
-          const ease = easeOutBack(p);
-          const flipCos = Math.cos((1 - ease) * (Math.PI / 2.1));
-          const wordScale = 0.6 + 0.4 * ease;
+        const spaceW = ctx.measureText(' ').width;
+        let globalWordIdx = 0;
 
-          ctx.save();
-          ctx.translate(targetWordCenterX, centerY);
-          ctx.scale(Math.max(0.01, flipCos * wordScale), wordScale);
-          ctx.fillStyle = options.textColor;
-          ctx.fillText(word, 0, 0);
-          ctx.restore();
+        lines.forEach((lineWords, lineIdx) => {
+          const lineY = startY + lineIdx * lineHeight;
+          const wordWidths = lineWords.map((w) => ctx.measureText(w).width);
+          const totalLineW = wordWidths.reduce((a, b) => a + b, 0) + (lineWords.length - 1) * spaceW;
+          let currentX = (width - totalLineW) / 2;
 
-          currentX += wWidth + finalSpaceWidth;
+          lineWords.forEach((word, wIdx) => {
+            const wWidth = wordWidths[wIdx];
+            const targetWordCenterX = currentX + wWidth / 2;
+            const p = Math.min(1, Math.max(0, (elapsed - globalWordIdx * 0.06) / 0.48));
+            const ease = easeOutBack(p);
+            const flipCos = Math.cos((1 - ease) * (Math.PI / 2.1));
+            const wordScale = 0.6 + 0.4 * ease;
+
+            ctx.save();
+            ctx.translate(targetWordCenterX, lineY);
+            ctx.scale(Math.max(0.01, flipCos * wordScale), wordScale);
+            ctx.fillStyle = options.textColor;
+            ctx.fillText(word, 0, 0);
+            ctx.restore();
+
+            currentX += wWidth + spaceW;
+            globalWordIdx++;
+          });
         });
       }
       // 🌟 4. Echo Ghost (Quang sai RGB)
       else if (preset === 'echo-ghost') {
         const p = Math.min(1, elapsed / 0.35);
         const ease = easeOutCubic(p);
-        const ghostOffset = (1 - ease) * 35;
+        const ghostOffset = (1 - ease) * 35 * (scaleFactor / 3.3);
 
-        // Bóng Cyan
-        ctx.save();
-        ctx.fillStyle = 'rgba(34, 211, 238, 0.65)';
-        ctx.fillText(line.text, width / 2 - ghostOffset, centerY - ghostOffset * 0.6);
-        ctx.restore();
+        lines.forEach((lineWords, lineIdx) => {
+          const lineY = startY + lineIdx * lineHeight;
+          const lineText = lineWords.join(' ');
 
-        // Bóng Red
-        ctx.save();
-        ctx.fillStyle = 'rgba(239, 68, 68, 0.65)';
-        ctx.fillText(line.text, width / 2 + ghostOffset, centerY + ghostOffset * 0.6);
-        ctx.restore();
+          // Bóng Cyan
+          ctx.save();
+          ctx.fillStyle = 'rgba(34, 211, 238, 0.65)';
+          ctx.fillText(lineText, width / 2 - ghostOffset, lineY - ghostOffset * 0.6);
+          ctx.restore();
 
-        // Chữ chính
-        ctx.fillStyle = options.textColor;
-        ctx.fillText(line.text, width / 2, centerY);
+          // Bóng Red
+          ctx.save();
+          ctx.fillStyle = 'rgba(239, 68, 68, 0.65)';
+          ctx.fillText(lineText, width / 2 + ghostOffset, lineY + ghostOffset * 0.6);
+          ctx.restore();
+
+          // Chữ chính
+          ctx.fillStyle = options.textColor;
+          ctx.fillText(lineText, width / 2, lineY);
+        });
       }
       // 🌟 5. Brutalist Giant (Hero Word to khổng lồ)
       else if (preset === 'brutalist-giant') {
@@ -286,29 +371,35 @@ export const ExportModal: React.FC<Props> = ({
         });
 
         const heroWord = words[heroIdx];
-        const secWords = words.filter((_, i) => i !== heroIdx).join(' ');
+        const secWords = words.filter((_, i) => i !== heroIdx);
 
         const p = Math.min(1, elapsed / 0.45);
         const ease = easeOutBack(p);
 
         // Hero Word to khổng lồ
+        const heroFontSize = Math.min(width * 0.85 / Math.max(1, ctx.measureText(heroWord).width / effectiveFontSize), effectiveFontSize * 2.0);
+        const heroY = secWords.length > 0 ? centerY - heroFontSize * 0.35 : centerY;
+
         ctx.save();
-        const heroFontSize = effectiveFontSize * 1.9 * ease;
-        ctx.font = `900 ${heroFontSize}px "${options.fontFamily}", sans-serif`;
+        ctx.font = `900 ${heroFontSize * ease}px "${options.fontFamily}", sans-serif`;
         ctx.fillStyle = options.textColor;
-        ctx.translate(width / 2, centerY - (secWords ? heroFontSize * 0.25 : 0));
+        ctx.translate(width / 2, heroY);
         ctx.rotate(-0.035 * (1 - ease));
         ctx.fillText(heroWord, 0, 0);
         ctx.restore();
 
-        // Secondary words
-        if (secWords) {
-          ctx.save();
+        // Secondary words (bọc nhiều dòng bên dưới)
+        if (secWords.length > 0) {
           const secFontSize = effectiveFontSize * 0.85;
           ctx.font = `700 ${secFontSize}px "${options.fontFamily}", sans-serif`;
           ctx.fillStyle = 'rgba(212, 212, 216, 0.85)';
-          ctx.fillText(secWords, width / 2, centerY + heroFontSize * 0.65);
-          ctx.restore();
+          const secLines = wrapWords(secWords, maxTextWidth);
+          const secLineH = secFontSize * 1.3;
+          const secStartY = heroY + heroFontSize * 0.65;
+
+          secLines.forEach((sWords, sIdx) => {
+            ctx.fillText(sWords.join(' '), width / 2, secStartY + sIdx * secLineH);
+          });
         }
       }
       // 🌟 6. Elastic Spring (Nảy lò xo)
@@ -320,7 +411,10 @@ export const ExportModal: React.FC<Props> = ({
         ctx.translate(width / 2, centerY);
         ctx.scale(scaleX, scaleY);
         ctx.fillStyle = options.textColor;
-        ctx.fillText(line.text, 0, 0);
+        lines.forEach((lineWords, lineIdx) => {
+          const lineY = startY + lineIdx * lineHeight - centerY;
+          ctx.fillText(lineWords.join(' '), 0, lineY);
+        });
         ctx.restore();
       }
       // 🌟 7. Hyper-Velocity (Lao vút phanh gấp)
@@ -332,48 +426,86 @@ export const ExportModal: React.FC<Props> = ({
         ctx.save();
         ctx.translate(width / 2, centerY);
         ctx.scale(scale, scale);
+
+        if (options.chromaticAberration) {
+          ctx.save();
+          ctx.fillStyle = 'rgba(239, 68, 68, 0.6)';
+          lines.forEach((lineWords, lineIdx) => {
+            const lineY = startY + lineIdx * lineHeight - centerY;
+            ctx.fillText(lineWords.join(' '), -4 * (scaleFactor / 3.3), lineY);
+          });
+          ctx.fillStyle = 'rgba(34, 211, 238, 0.6)';
+          lines.forEach((lineWords, lineIdx) => {
+            const lineY = startY + lineIdx * lineHeight - centerY;
+            ctx.fillText(lineWords.join(' '), 4 * (scaleFactor / 3.3), lineY);
+          });
+          ctx.restore();
+        }
+
         ctx.fillStyle = options.textColor;
-        ctx.fillText(line.text, 0, 0);
+        lines.forEach((lineWords, lineIdx) => {
+          const lineY = startY + lineIdx * lineHeight - centerY;
+          ctx.fillText(lineWords.join(' '), 0, lineY);
+        });
         ctx.restore();
       }
       // 🌟 8. Liquid Chrome 3D (Ánh bạc kim loại)
       else if (preset === 'liquid-chrome') {
         const p = Math.min(1, elapsed / 0.6);
         const ease = easeOutCubic(p);
-        const yOffset = (1 - ease) * 35;
+        const yOffset = (1 - ease) * 35 * (scaleFactor / 3.3);
+        const floatY = Math.sin(elapsed * 2.5) * (4 * (scaleFactor / 3.3));
 
         ctx.save();
-        ctx.translate(width / 2, centerY - yOffset);
-        const grad = ctx.createLinearGradient(-finalTotalWidth / 2, -effectiveFontSize, finalTotalWidth / 2, effectiveFontSize);
+        ctx.translate(width / 2, centerY - yOffset + floatY);
+
+        const grad = ctx.createLinearGradient(-maxTextWidth / 2, -totalBlockHeight / 2, maxTextWidth / 2, totalBlockHeight / 2);
         grad.addColorStop(0, '#ffffff');
         grad.addColorStop(0.35, '#94a3b8');
         grad.addColorStop(0.65, '#ffffff');
         grad.addColorStop(0.85, '#cbd5e1');
         grad.addColorStop(1, '#ffffff');
         ctx.fillStyle = grad;
-        ctx.fillText(line.text, 0, 0);
+
+        lines.forEach((lineWords, lineIdx) => {
+          const lineY = startY + lineIdx * lineHeight - centerY;
+          ctx.fillText(lineWords.join(' '), 0, lineY);
+        });
         ctx.restore();
       }
-      // 🌟 9. Film Fade (Vàng kem cổ điển)
+      // 🌟 9. Film Fade (Vàng kem cổ điển, ấm áp, tĩnh lặng tuyệt đối không rung giật)
       else if (preset === 'film-burn') {
-        const jitterX = (Math.random() - 0.5) * 3;
-        const jitterY = (Math.random() - 0.5) * 2;
+        const p = Math.min(1, elapsed / 0.45);
+        const ease = easeOutCubic(p);
+        const scale = 1.04 - 0.04 * ease;
+        const alpha = ease;
 
         ctx.save();
+        ctx.globalAlpha = alpha;
         ctx.fillStyle = '#fef3c7';
         ctx.shadowColor = 'rgba(251, 146, 60, 0.6)';
-        ctx.shadowBlur = 18;
-        ctx.translate(width / 2 + jitterX, centerY + jitterY);
-        ctx.fillText(line.text, 0, 0);
+        ctx.shadowBlur = Math.round(16 * scaleFactor);
+
+        ctx.translate(width / 2, centerY);
+        ctx.scale(scale, scale);
+
+        lines.forEach((lineWords, lineIdx) => {
+          const lineY = startY + lineIdx * lineHeight - centerY;
+          ctx.fillText(lineWords.join(' '), 0, lineY);
+        });
         ctx.restore();
       }
-      // 🌟 10. Liquid Smoke (Khói mờ tan chảy)
+      // 🌟 10. Liquid Smoke (Khói mờ Sfumato)
       else {
-        const alpha = Math.min(1, elapsed * 1.8);
+        const alpha = Math.min(1, elapsed * 1.5);
         ctx.save();
         ctx.globalAlpha = alpha;
         ctx.fillStyle = options.textColor;
-        ctx.fillText(line.text, width / 2, centerY);
+
+        lines.forEach((lineWords, lineIdx) => {
+          const lineY = startY + lineIdx * lineHeight;
+          ctx.fillText(lineWords.join(' '), width / 2, lineY);
+        });
         ctx.restore();
       }
 

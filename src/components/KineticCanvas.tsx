@@ -431,15 +431,14 @@ export const KineticCanvas: React.FC<Props> = ({
                 {/* PRESET 9: VINTAGE 16MM FILM BURN */}
                 {options.motionPreset === 'film-burn' && (
                   <motion.div
-                    initial={{ opacity: 0, scale: 1.05, filter: 'blur(6px)' }}
+                    initial={{ opacity: 0, scale: 1.04, filter: 'blur(6px)' }}
                     animate={{
                       opacity: 1,
-                      scale: [1.02, 0.99, 1.01, 1],
-                      x: [-1.5, 1.5, -0.5, 0],
+                      scale: 1,
                       filter: 'blur(0px)',
-                      transition: { duration: 0.6, ease: 'easeOut' }
+                      transition: { duration: 0.45, ease: 'easeOut' }
                     }}
-                    exit={{ opacity: 0, filter: 'blur(8px)', transition: { duration: 0.3 } }}
+                    exit={{ opacity: 0, filter: 'blur(8px)', transition: { duration: 0.25 } }}
                     className="max-w-[90%] leading-relaxed tracking-wider select-none"
                     style={{
                       ...fontStyle,
