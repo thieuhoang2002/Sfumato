@@ -1,0 +1,103 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background-color: #000000;
+  color: #ededed;
+  font-family: 'Be Vietnam Pro', sans-serif;
+  overflow-x: hidden;
+}
+
+/* Custom minimal scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #09090b;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #27272a;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46;
+}
+
+/* Animations WOW */
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 0.85; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.02); }
+}
+
+@keyframes float-levitate {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-7px) rotate(0.8deg); }
+}
+
+@keyframes chrome-sheen {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes marquee-scroll {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes film-leak {
+  0% { opacity: 0; transform: scale(1); }
+  15% { opacity: 0.45; transform: scale(1.08); }
+  100% { opacity: 0; transform: scale(1); }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-float {
+  animation: float-levitate 4s ease-in-out infinite;
+}
+
+.animate-marquee {
+  animation: marquee-scroll 18s linear infinite;
+}
+
+.animate-film-leak {
+  animation: film-leak 1.2s ease-out forwards;
+}
+
+/* Metallic Chrome text effect */
+.text-chrome-shine {
+  background: linear-gradient(
+    115deg, 
+    #71717a 0%, 
+    #ffffff 25%, 
+    #a1a1aa 45%, 
+    #ffffff 60%, 
+    #52525b 80%, 
+    #ffffff 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: chrome-sheen 3.5s linear infinite;
+}
+
+/* CRT Scanlines */
+.crt-scanlines {
+  background: linear-gradient(
+    rgba(18, 16, 16, 0) 50%, 
+    rgba(0, 0, 0, 0.45) 50%
+  );
+  background-size: 100% 4px;
+}
