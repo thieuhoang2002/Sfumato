@@ -44,8 +44,19 @@ export function App() {
   const [duration, setDuration] = useState<number>(24); // default duration
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Lyrics state
+  // Lyrics state (Tự động lưu & phục hồi qua localStorage)
   const [lyrics, setLyrics] = useState<LyricLine[]>(() => {
+    try {
+      const cached = localStorage.getItem('sfumato_lyrics_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Could not read cached lyrics:', e);
+    }
     const parsed = parseLyricsText(DEFAULT_SAMPLE_LYRICS);
     return parsed.map((item, idx) => ({
       ...item,
@@ -54,6 +65,27 @@ export function App() {
       synced: true,
     }));
   });
+
+  // Tự động lưu lyrics mỗi khi có thay đổi
+  useEffect(() => {
+    try {
+      localStorage.setItem('sfumato_lyrics_cache', JSON.stringify(lyrics));
+    } catch (e) {
+      console.warn('Could not cache lyrics:', e);
+    }
+  }, [lyrics]);
+
+  // Cảnh báo khi người dùng F5 hoặc tắt trang để tránh mất tiến trình
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (lyrics.length > 0 || audioUrl) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [lyrics, audioUrl]);
 
   // Tap-to-Sync Engine state
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
@@ -146,12 +178,33 @@ export function App() {
   };
 
   const handleUploadAudio = (file: File) => {
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl);
+    }
     const url = URL.createObjectURL(file);
     setAudioUrl(url);
     if (audioRef.current) {
       audioRef.current.src = url;
       audioRef.current.load();
     }
+  };
+
+  const handleRemoveAudio = () => {
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl);
+      setAudioUrl(null);
+    }
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = '';
+    }
+    setIsPlaying(false);
+    setCurrentTime(0);
+    // Tính lại duration theo lyrics nếu có, fallback 24s
+    const maxLyric = lyrics.length > 0
+      ? Math.max(...lyrics.map((l) => (l.endTime > l.startTime ? l.endTime : l.startTime + 4)))
+      : 24;
+    setDuration(Math.max(maxLyric, 24));
   };
 
   // Stamp a specific line with the current timestamp
@@ -387,6 +440,7 @@ export function App() {
         onTogglePlay={togglePlay}
         onSeek={handleSeek}
         onUploadAudio={handleUploadAudio}
+        onRemoveAudio={handleRemoveAudio}
         onReset={handleReset}
       />
 

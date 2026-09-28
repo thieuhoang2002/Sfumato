@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { Play, Pause, RotateCcw, Volume2, Upload, Music } from 'lucide-react';
+import { Play, Pause, RotateCcw, Volume2, Upload, Music, Trash2 } from 'lucide-react';
 import { formatTime } from '../utils/formatters';
 import { LyricLine } from '../types';
 
@@ -12,6 +12,7 @@ interface Props {
   onTogglePlay: () => void;
   onSeek: (time: number) => void;
   onUploadAudio: (file: File) => void;
+  onRemoveAudio?: () => void;
   onReset: () => void;
 }
 
@@ -24,6 +25,7 @@ const WaveformTimelineComponent: React.FC<Props> = ({
   onTogglePlay,
   onSeek,
   onUploadAudio,
+  onRemoveAudio,
   onReset,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -60,14 +62,26 @@ const WaveformTimelineComponent: React.FC<Props> = ({
             className="flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white hover:border-zinc-700 transition"
           >
             <Upload size={13} />
-            <span>{audioUrl ? 'Đổi File Nhạc / Vocal' : 'Tải File Nhạc (MP3, WAV)'}</span>
+            <span>{audioUrl ? 'Đổi File Nhạc' : 'Tải File Nhạc (MP3, WAV)'}</span>
           </button>
 
           {audioUrl && (
-            <span className="text-zinc-500 font-mono text-[11px] flex items-center space-x-1.5">
-              <Music size={12} className="text-zinc-400" />
-              <span>Sẵn sàng phát</span>
-            </span>
+            <>
+              {onRemoveAudio && (
+                <button
+                  onClick={onRemoveAudio}
+                  className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-rose-400 hover:border-rose-900/50 transition"
+                  title="Xóa / Gỡ file nhạc hiện tại"
+                >
+                  <Trash2 size={13} />
+                  <span>Gỡ nhạc</span>
+                </button>
+              )}
+              <span className="text-zinc-500 font-mono text-[11px] flex items-center space-x-1.5">
+                <Music size={12} className="text-emerald-400" />
+                <span className="text-zinc-300">Đã nạp nhạc</span>
+              </span>
+            </>
           )}
         </div>
 

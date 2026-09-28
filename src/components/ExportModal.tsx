@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { X, Download, Film, CheckCircle, Volume2, VolumeX, Play } from 'lucide-react';
+import { X, Download, Film, CheckCircle, Volume2, VolumeX, RotateCcw, AlertTriangle } from 'lucide-react';
 import { LyricLine, StylingOptions } from '../types';
 import { formatTime } from '../utils/formatters';
 import { renderKineticFrame } from '../utils/kineticRenderer';
@@ -246,13 +246,13 @@ export const ExportModal: React.FC<Props> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4">
-      <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl flex flex-col space-y-5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-3 sm:p-4">
+      <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto p-5 shadow-2xl flex flex-col space-y-3.5">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-zinc-900 pb-3">
           <div className="flex items-center space-x-2">
             <Film size={18} className="text-white" />
-            <h3 className="font-semibold text-zinc-100">Xuất Video Terminal / IDE Code</h3>
+            <h3 className="font-semibold text-zinc-100 text-sm">Xuất Video Terminal / IDE Code</h3>
           </div>
           <button
             onClick={onClose}
@@ -264,15 +264,15 @@ export const ExportModal: React.FC<Props> = ({
         </div>
 
         {/* Audio Option Notice */}
-        <div className="p-3.5 rounded-xl bg-zinc-900/80 border border-zinc-800 text-xs space-y-3">
+        <div className="p-3 rounded-xl bg-zinc-900/80 border border-zinc-800 text-xs space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               {includeAudio && audioUrl ? (
-                <Volume2 size={16} className="text-emerald-400" />
+                <Volume2 size={15} className="text-emerald-400" />
               ) : (
-                <VolumeX size={16} className="text-zinc-500" />
+                <VolumeX size={15} className="text-zinc-500" />
               )}
-              <span className="font-semibold text-zinc-200">Kèm âm thanh bài hát vào video</span>
+              <span className="font-semibold text-zinc-200">Kèm âm thanh vào video</span>
             </div>
 
             <label className="relative inline-flex items-center cursor-pointer">
@@ -283,7 +283,7 @@ export const ExportModal: React.FC<Props> = ({
                 onChange={(e) => setIncludeAudio(e.target.checked)}
                 className="sr-only peer"
               />
-              <div className="w-9 h-5 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600 peer-disabled:opacity-40"></div>
+              <div className="w-8 h-4.5 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-emerald-600 peer-disabled:opacity-40"></div>
             </label>
           </div>
 
@@ -291,81 +291,89 @@ export const ExportModal: React.FC<Props> = ({
             {audioUrl ? (
               includeAudio ? (
                 <span className="text-emerald-400/90">
-                  ✓ <b>Có âm thanh:</b> Video xuất ra sẽ lồng sẵn nhạc/vocal đầy đủ, sẵn sàng để xem ngay hoặc đăng trực tiếp lên mạng xã hội.
+                  ✓ <b>Có âm thanh:</b> Lồng sẵn nhạc đầy đủ, sẵn sàng xem ngay hoặc đăng mạng xã hội.
                 </span>
               ) : (
                 <span className="text-zinc-400">
-                  ○ <b>Không có âm thanh (Câm):</b> Chỉ xuất video chữ nền đen để bạn đưa vào CapCut hòa trộn mà không bị trùng lặp với track nhạc gốc.
+                  ○ <b>Không có âm thanh (Câm):</b> Chỉ xuất chữ nền đen để đưa vào CapCut hòa trộn (Screen).
                 </span>
               )
             ) : (
               <span className="text-amber-400/80">
-                ⚠ Bạn chưa tải file nhạc lên. Video xuất ra sẽ là video câm (chỉ có chữ chuyển động).
+                ⚠ Chưa nạp nhạc. Video xuất ra sẽ là video câm (chỉ có chữ chuyển động).
               </span>
             )}
           </p>
         </div>
 
+        {/* Cảnh báo quan trọng: Giữ tab nguyên vẹn khi render */}
+        <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-start space-x-2.5">
+          <AlertTriangle size={15} className="shrink-0 mt-0.5 text-amber-400" />
+          <div className="leading-relaxed text-[11px]">
+            <b>Quan trọng:</b> Vui lòng <u>giữ nguyên tab này</u>, không chuyển tab hay thu nhỏ trình duyệt trong lúc xuất video để tránh bị ngắt quãng hoặc đóng băng khung hình!
+          </div>
+        </div>
+
         {/* Export Resolution & FPS & Format */}
-        <div className="grid grid-cols-3 gap-2.5 text-xs">
+        <div className="grid grid-cols-3 gap-2 text-xs">
           <div>
-            <label className="text-zinc-400 mb-1.5 block">Định dạng file</label>
+            <label className="text-zinc-400 mb-1 block text-[11px]">Định dạng</label>
             <select
               value={exportFormat}
               onChange={(e) => setExportFormat(e.target.value as any)}
               disabled={isExporting}
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2.5 text-zinc-200 focus:outline-none"
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-zinc-200 focus:outline-none text-xs"
             >
               {isMp4Supported && (
-                <option value="mp4">MP4 (Chuẩn Windows/CapCut)</option>
+                <option value="mp4">MP4 (Windows)</option>
               )}
-              <option value="webm">WebM (VP9 Sắc nét)</option>
+              <option value="webm">WebM (VP9)</option>
             </select>
           </div>
 
           <div>
-            <label className="text-zinc-400 mb-1.5 block">Độ phân giải</label>
+            <label className="text-zinc-400 mb-1 block text-[11px]">Độ phân giải</label>
             <select
               value={resolution}
               onChange={(e) => setResolution(e.target.value as any)}
               disabled={isExporting}
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2.5 text-zinc-200 focus:outline-none"
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-zinc-200 focus:outline-none text-xs"
             >
-              <option value="1080p">1080p (Sắc nét)</option>
-              <option value="720p">720p (Nhanh nhẹ)</option>
+              <option value="1080p">1080p (FHD)</option>
+              <option value="720p">720p (HD)</option>
             </select>
           </div>
 
           <div>
-            <label className="text-zinc-400 mb-1.5 block">Khung hình (FPS)</label>
+            <label className="text-zinc-400 mb-1 block text-[11px]">Khung hình</label>
             <select
               value={fps}
               onChange={(e) => setFps(Number(e.target.value) as any)}
               disabled={isExporting}
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2.5 text-zinc-200 focus:outline-none"
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-zinc-200 focus:outline-none text-xs"
             >
-              <option value="60">60 FPS (Siêu mượt)</option>
-              <option value="30">30 FPS (Nhẹ hơn)</option>
+              <option value="60">60 FPS (Mượt)</option>
+              <option value="30">30 FPS (Nhẹ)</option>
             </select>
           </div>
         </div>
 
         {/* Live Exporting Progress Preview */}
         {isExporting && (
-          <div className="space-y-3 pt-1">
+          <div className="space-y-2.5 pt-1">
             <div className="relative rounded-xl overflow-hidden bg-black border border-zinc-800 p-2 flex flex-col items-center justify-center">
               <canvas
                 ref={previewCanvasRef}
                 width={options.aspectRatio === '9:16' ? 270 : options.aspectRatio === '1:1' ? 270 : 360}
                 height={options.aspectRatio === '9:16' ? 480 : options.aspectRatio === '1:1' ? 270 : 202}
-                className="rounded-lg object-contain max-h-[220px] shadow-lg border border-zinc-900"
+                className="rounded-lg object-contain max-h-[160px] shadow-lg border border-zinc-900"
               />
               <span className="text-[10px] text-zinc-500 font-mono mt-1.5 animate-pulse">
                 ● Đang ghi hình trực tiếp frame-by-frame...
               </span>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <div className="flex justify-between text-xs text-zinc-400">
                 <span className="flex items-center space-x-1.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
@@ -386,11 +394,11 @@ export const ExportModal: React.FC<Props> = ({
           </div>
         )}
 
-        {/* Exported Result View with in-modal Video Player */}
+        {/* Exported Result View with in-modal Video Player & Re-export button */}
         {!isExporting && exportedUrl ? (
-          <div className="flex flex-col space-y-3 pt-1">
-            <div className="p-3 bg-emerald-950/40 border border-emerald-500/30 rounded-lg text-emerald-400 text-xs flex items-center space-x-2">
-              <CheckCircle size={16} />
+          <div className="flex flex-col space-y-2.5 pt-1">
+            <div className="p-2.5 bg-emerald-950/40 border border-emerald-500/30 rounded-lg text-emerald-400 text-xs flex items-center space-x-2">
+              <CheckCircle size={15} />
               <span>
                 Kết xuất hoàn tất ({totalDuration.toFixed(1)}s, định dạng {exportedFormat.toUpperCase()})!
               </span>
@@ -403,27 +411,41 @@ export const ExportModal: React.FC<Props> = ({
                 controls
                 autoPlay
                 playsInline
-                className="max-h-[220px] w-auto rounded-lg object-contain mx-auto"
+                className="max-h-[170px] w-auto rounded-lg object-contain mx-auto"
               />
             </div>
 
-            <div className="text-[11px] text-zinc-400 bg-zinc-900/60 p-2.5 rounded-lg border border-zinc-800/80 leading-relaxed">
-              💡 <b>Xem thử:</b> Bạn có thể bấm Play ngay trong khung trên để xem toàn bộ video {totalDuration.toFixed(0)}s. Video chuẩn {exportedFormat.toUpperCase()} sẵn sàng để nhập vào CapCut hòa trộn (Screen) hoặc chia sẻ ngay!
+            <div className="text-[11px] text-zinc-400 bg-zinc-900/60 p-2 rounded-lg border border-zinc-800/80 leading-relaxed">
+              💡 <b>Xem thử:</b> Bấm Play ngay trong khung trên để xem toàn bộ video {totalDuration.toFixed(0)}s trước khi tải về.
             </div>
 
-            <a
-              href={exportedUrl}
-              download={`sfumato_lyrics_black_${options.aspectRatio.replace(':', 'x')}_60fps.${exportedFormat}`}
-              className="w-full py-3 bg-white text-black font-semibold rounded-lg hover:bg-zinc-200 transition text-xs flex items-center justify-center space-x-2 shadow-lg"
-            >
-              <Download size={14} />
-              <span>Tải Video ({exportedFormat.toUpperCase()}) Về Máy</span>
-            </a>
+            {/* Hai nút: Làm Lại và Tải Video */}
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                onClick={() => {
+                  setExportedUrl(null);
+                  setProgress(0);
+                }}
+                className="w-full py-2.5 bg-zinc-900 border border-zinc-800 text-zinc-300 font-medium rounded-lg hover:bg-zinc-800 hover:text-white transition text-xs flex items-center justify-center space-x-1.5 shadow"
+              >
+                <RotateCcw size={14} />
+                <span>Làm Lại / Xuất Lại</span>
+              </button>
+
+              <a
+                href={exportedUrl}
+                download={`sfumato_lyrics_black_${options.aspectRatio.replace(':', 'x')}_60fps.${exportedFormat}`}
+                className="w-full py-2.5 bg-white text-black font-semibold rounded-lg hover:bg-zinc-200 transition text-xs flex items-center justify-center space-x-1.5 shadow-lg"
+              >
+                <Download size={14} />
+                <span>Tải Video ({exportedFormat.toUpperCase()})</span>
+              </a>
+            </div>
           </div>
         ) : !isExporting && (
           <button
             onClick={startExport}
-            className="w-full py-3 bg-white text-black font-semibold rounded-lg hover:bg-zinc-200 transition text-xs flex items-center justify-center space-x-2 shadow-lg"
+            className="w-full py-2.5 bg-white text-black font-semibold rounded-lg hover:bg-zinc-200 transition text-xs flex items-center justify-center space-x-2 shadow-lg"
           >
             <Film size={14} />
             <span>Bắt Đầu Kết Xuất Video</span>
