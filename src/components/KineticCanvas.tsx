@@ -57,15 +57,15 @@ export const KineticCanvas: React.FC<Props> = ({
     }));
   }, [currentLine, options.textCase]);
 
-  // Aspect ratio class
+  // Aspect ratio class cố định kích thước vững chắc, không bao giờ co giãn theo nội dung chữ
   const aspectClass = useMemo(() => {
     switch (options.aspectRatio) {
       case '9:16':
-        return 'aspect-[9/16] max-h-[82vh] w-auto max-w-[420px]';
+        return 'h-[min(580px,calc(100%-2rem))] aspect-[9/16] w-auto shrink-0';
       case '1:1':
-        return 'aspect-square max-h-[75vh] w-auto max-w-[540px]';
+        return 'h-[min(500px,calc(100%-2rem))] aspect-square w-auto shrink-0';
       case '16:9':
-        return 'aspect-[16/9] w-full max-w-[760px]';
+        return 'w-[min(720px,calc(100%-2rem))] aspect-[16/9] h-auto shrink-0';
     }
   }, [options.aspectRatio]);
 
@@ -85,19 +85,19 @@ export const KineticCanvas: React.FC<Props> = ({
 
   return (
     <div className="relative flex items-center justify-center w-full h-full p-4 overflow-hidden select-none">
-      {/* Studio Black Canvas Box */}
+      {/* Studio Black Canvas Box - Khóa cứng kích thước tuyệt đối */}
       <div 
         ref={canvasRef}
         id="sfumato-render-canvas"
-        className={`relative ${aspectClass} bg-black overflow-hidden rounded-2xl shadow-2xl border border-zinc-800/80 flex items-center justify-center transition-all duration-300`}
+        className={`relative ${aspectClass} bg-black overflow-hidden rounded-2xl shadow-2xl border border-zinc-800/80 flex items-center justify-center`}
         style={{ backgroundColor: '#000000' }}
       >
         {/* Safe Zone Simulation */}
         <SafeZoneOverlay aspectRatio={options.aspectRatio} show={options.showSafeZone} />
 
-        {/* 5. Trung Tâm: CHỈ DUY NHẤT LỜI BÀI HÁT (LYRICS) NGHỆ THUẬT */}
+        {/* Trung Tâm: CHỈ DUY NHẤT LỜI BÀI HÁT (LYRICS) NGHỆ THUẬT */}
         <div 
-          className="relative z-10 w-full px-8 py-14 flex flex-col justify-center items-center text-center"
+          className="relative z-10 w-full h-full px-6 py-12 flex flex-col justify-center items-center text-center overflow-hidden"
           style={{ textAlign: options.alignment }}
         >
           <AnimatePresence mode="wait">
