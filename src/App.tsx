@@ -5,6 +5,8 @@ import { LyricsEditor } from './components/LyricsEditor';
 import { StyleControls } from './components/StyleControls';
 import { WaveformTimeline } from './components/WaveformTimeline';
 import { ExportModal } from './components/ExportModal';
+import { FullscreenPreview } from './components/FullscreenPreview';
+import { Maximize2 } from 'lucide-react';
 import { LyricLine, StylingOptions, AspectRatio, MotionPreset } from './types';
 import { parseLyricsText } from './utils/formatters';
 
@@ -69,6 +71,9 @@ export function App() {
 
   // Export Modal state
   const [isExportOpen, setIsExportOpen] = useState<boolean>(false);
+
+  // Fullscreen Preview state
+  const [isFullscreenPreview, setIsFullscreenPreview] = useState<boolean>(false);
 
   // Initialize synth ambient audio preview if user doesn't have an audio file immediately
   useEffect(() => {
@@ -285,6 +290,8 @@ export function App() {
         } else {
           togglePlay();
         }
+      } else if (e.key.toLowerCase() === 'f' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        setIsFullscreenPreview((prev) => !prev);
       }
     };
 
@@ -346,8 +353,18 @@ export function App() {
               <span>{showLyricsPanel ? '◀ Thu gọn Lời' : '▶ Mở bảng Lời'}</span>
             </button>
 
-            <div className="text-[10px] font-mono tracking-widest text-zinc-500 uppercase bg-black/60 px-2.5 py-1 rounded-full border border-zinc-800 backdrop-blur">
-              CANVAS PREVIEW • {styling.aspectRatio}
+            <div className="flex items-center space-x-2 pointer-events-auto">
+              <div className="text-[10px] font-mono tracking-widest text-zinc-500 uppercase bg-black/60 px-2.5 py-1 rounded-full border border-zinc-800 backdrop-blur">
+                CANVAS PREVIEW • {styling.aspectRatio}
+              </div>
+              <button
+                onClick={() => setIsFullscreenPreview(true)}
+                className="px-2.5 py-1 rounded-lg bg-zinc-900/80 hover:bg-zinc-800 border border-zinc-800 text-[11px] text-zinc-300 hover:text-white transition backdrop-blur flex items-center space-x-1 shadow-sm"
+                title="Xem preview toàn màn hình (Phím tắt F)"
+              >
+                <Maximize2 size={12} className="text-emerald-400" />
+                <span>Toàn màn hình (F)</span>
+              </button>
             </div>
 
             <button
@@ -399,6 +416,19 @@ export function App() {
         options={styling}
         duration={duration}
         audioUrl={audioUrl}
+      />
+
+      {/* 5. Fullscreen Realtime Preview (Rạp chiếu phim / Điện thoại thực tế) */}
+      <FullscreenPreview
+        isOpen={isFullscreenPreview}
+        onClose={() => setIsFullscreenPreview(false)}
+        lyrics={lyrics}
+        currentTime={currentTime}
+        duration={duration}
+        isPlaying={isPlaying}
+        options={styling}
+        onTogglePlay={togglePlay}
+        onSeek={handleSeek}
       />
     </div>
   );
