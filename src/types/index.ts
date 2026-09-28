@@ -1,16 +1,26 @@
 export type AspectRatio = '9:16' | '1:1' | '16:9';
 
-export type MotionPreset = 
-  | 'shatter-assemble'   // Phân rã tản mác 4 phương -> Hút xoáy hợp nhất va đập (THE WOW DISRUPTIVE)
-  | 'cross-drift'        // Đan chéo đối kháng 2 bên lao vào nhau xé gió
-  | 'card-flip-3d'       // Xòe bài 3D trong không gian -> Khóa cạch đanh thép
-  | 'echo-ghost'         // Bóng ma phân thân 4 hướng -> Thu hồi chớp nhoáng
-  | 'brutalist-giant'    // Bất đối xứng cực hạn: Từ chính khổng lồ chiếm 70% khung hình
-  | 'elastic-spring'     // Co giãn dây cao su đàn hồi & nhịp thở vật lý
-  | 'hyper-velocity'     // Lao vút từ vô tận, zoom bùng nổ, phanh gấp rung chấn
-  | 'liquid-chrome'      // Tráng gương kim loại bạc ánh kim, lơ lửng 3D
-  | 'film-burn'          // Vintage 16mm: Vệt cháy phim cam ấm áp
-  | 'liquid-smoke';      // Khói mờ Sfumato Phục Hưng loang nở như mực
+export type EditorTheme = 
+  | 'vscode-dark'     // VS Code Dark+ chuẩn mực lập trình viên
+  | 'tokyo-night'     // Tokyo Night neon Cyberpunk
+  | 'dracula'         // Dracula Pro tím vàng
+  | 'matrix'          // Matrix Hacker xanh lá phosphor
+  | 'monokai'         // Monokai Pro cổ điển
+  | 'cyberpunk';      // Cyberpunk Amber vàng cam 2077
+
+export type CodeLanguage = 
+  | 'typescript'      // yield "..." / const line = "..."
+  | 'python'          // print("...") / yield "..."
+  | 'bash'            // [00:14] $ echo "..."
+  | 'plain';          // [00:14] "..."
+
+export type MonospaceFont = 
+  | 'JetBrains Mono'
+  | 'Fira Code'
+  | 'Be Vietnam Pro'
+  | 'Courier New';
+
+export type CursorStyle = 'block' | 'line' | 'underscore';
 
 export interface LyricWord {
   id: string;
@@ -29,39 +39,25 @@ export interface LyricLine {
   synced: boolean;
 }
 
-export type FontChoice = 
-  | 'Unbounded'          // Futuristic Neo-Grotesk cực dày mở rộng (Đỉnh cao xu hướng toàn cầu)
-  | 'Cinzel'             // La Mã quý tộc, sắc lẹm như lưỡi kiếm (Haute Couture)
-  | 'Montserrat'         // Black 900 Italic thể thao tốc độ (Chuẩn MV Hip-Hop)
-  | 'Archivo Black'      // Nặng ký, đanh thép tuyệt đối (Brutalist poster)
-  | 'Prata'              // Serif thời trang Paris tương phản cao ngút ngàn
-  | 'Epilogue'           // Brutalist Display vát góc cá tính
-  | 'Sedgwick Ave'       // Graffiti / Nét cọ đường phố chất chơi
-  | 'Philosopher'        // Serif huyền ảo uốn lượn độc lạ
-  | 'Playfair Display'   // Serif quý phái lãng mạn điện ảnh
-  | 'Be Vietnam Pro';    // Chuẩn mực đương đại quốc tế
-
 export interface StylingOptions {
-  fontFamily: FontChoice;
+  theme: EditorTheme;
+  language: CodeLanguage;
+  fontFamily: string;
   fontSize: number;
-  fontWeight: number;
-  letterSpacing: number;
-  textColor: string;
-  glowEffect: boolean;
-  glowIntensity: number;
   lineHeight: number;
-  alignment: 'center' | 'left' | 'right';
-  motionPreset: MotionPreset;
   aspectRatio: AspectRatio;
-  showSafeZone: boolean;
-  
-  // Hiệu ứng điện ảnh
-  enableFilmGrain: boolean;
-  filmBurnEffect: boolean;
-  chromeReflect: boolean;
-  cameraShake: boolean;
+  showLineNumbers: boolean;
+  showTimestamps: boolean;
+  showMacDots: boolean;
+  showBreadcrumb: boolean;
+  typewriterEffect: boolean;
+  cursorStyle: CursorStyle;
   crtScanlines: boolean;
-  heroWordAccent: 'scale' | 'outline' | 'badge' | 'none';
-  chromaticAberration: boolean;
-  textCase: 'none' | 'uppercase' | 'lowercase';
+  fileName: string;
+  showSafeZone: boolean;
+
+  // Backwards compatibility / helpers
+  fontWeight?: number;
+  textColor?: string;
+  glowEffect?: boolean;
 }

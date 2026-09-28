@@ -5,7 +5,9 @@ import { LyricsEditor } from './components/LyricsEditor';
 import { StyleControls } from './components/StyleControls';
 import { WaveformTimeline } from './components/WaveformTimeline';
 import { ExportModal } from './components/ExportModal';
-import { LyricLine, StylingOptions, AspectRatio, MotionPreset } from './types';
+import { FullscreenPreview } from './components/FullscreenPreview';
+import { Maximize2 } from 'lucide-react';
+import { LyricLine, StylingOptions, AspectRatio } from './types';
 import { parseLyricsText } from './utils/formatters';
 
 const DEFAULT_SAMPLE_LYRICS = `Đêm buông xuống thành phố không còn ai
@@ -16,28 +18,23 @@ Giữ trọn từng nét chữ của riêng mình
 Sfumato - chuyển động của tâm linh.`;
 
 export function App() {
-  // Styling state (WOW Disruptive Defaults)
+  // Styling state (IDE Code Editor & Terminal Defaults)
   const [styling, setStyling] = useState<StylingOptions>({
-    fontFamily: 'Unbounded',
-    fontSize: 30,
-    fontWeight: 900,
-    letterSpacing: 0.02,
-    textColor: '#FFFFFF',
-    glowEffect: true,
-    glowIntensity: 0.45,
-    lineHeight: 1.35,
-    alignment: 'center',
-    motionPreset: 'shatter-assemble',
+    theme: 'vscode-dark',
+    language: 'typescript',
+    fontFamily: 'JetBrains Mono',
+    fontSize: 15,
+    lineHeight: 1.6,
     aspectRatio: '9:16',
-    showSafeZone: true,
-    enableFilmGrain: true,
-    filmBurnEffect: true,
-    chromeReflect: true,
-    cameraShake: true,
+    showLineNumbers: true,
+    showTimestamps: true,
+    showMacDots: true,
+    showBreadcrumb: true,
+    typewriterEffect: true,
+    cursorStyle: 'block',
     crtScanlines: false,
-    heroWordAccent: 'scale',
-    chromaticAberration: true,
-    textCase: 'none',
+    fileName: 'lyrics.ts',
+    showSafeZone: false,
   });
 
   // Audio & Playback state
@@ -47,8 +44,19 @@ export function App() {
   const [duration, setDuration] = useState<number>(24); // default duration
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Lyrics state
+  // Lyrics state (Tự động lưu & phục hồi qua localStorage)
   const [lyrics, setLyrics] = useState<LyricLine[]>(() => {
+    try {
+      const cached = localStorage.getItem('sfumato_lyrics_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Could not read cached lyrics:', e);
+    }
     const parsed = parseLyricsText(DEFAULT_SAMPLE_LYRICS);
     return parsed.map((item, idx) => ({
       ...item,
@@ -58,10 +66,30 @@ export function App() {
     }));
   });
 
+  // Tự động lưu lyrics mỗi khi có thay đổi
+  useEffect(() => {
+    try {
+      localStorage.setItem('sfumato_lyrics_cache', JSON.stringify(lyrics));
+    } catch (e) {
+      console.warn('Could not cache lyrics:', e);
+    }
+  }, [lyrics]);
+
+  // Cảnh báo khi người dùng F5 hoặc tắt trang để tránh mất tiến trình
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (lyrics.length > 0 || audioUrl) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [lyrics, audioUrl]);
+
   // Tap-to-Sync Engine state
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [currentSyncIndex, setCurrentSyncIndex] = useState<number>(0);
-  const [spaceAction, setSpaceAction] = useState<'create_new' | 'sync_existing'>('create_new');
 
   // Panel visibility toggles
   const [showLyricsPanel, setShowLyricsPanel] = useState<boolean>(true);
@@ -69,6 +97,9 @@ export function App() {
 
   // Export Modal state
   const [isExportOpen, setIsExportOpen] = useState<boolean>(false);
+
+  // Fullscreen Preview state
+  const [isFullscreenPreview, setIsFullscreenPreview] = useState<boolean>(false);
 
   // Initialize synth ambient audio preview if user doesn't have an audio file immediately
   useEffect(() => {
@@ -147,12 +178,33 @@ export function App() {
   };
 
   const handleUploadAudio = (file: File) => {
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl);
+    }
     const url = URL.createObjectURL(file);
     setAudioUrl(url);
     if (audioRef.current) {
       audioRef.current.src = url;
       audioRef.current.load();
     }
+  };
+
+  const handleRemoveAudio = () => {
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl);
+      setAudioUrl(null);
+    }
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = '';
+    }
+    setIsPlaying(false);
+    setCurrentTime(0);
+    // Tính lại duration theo lyrics nếu có, fallback 24s
+    const maxLyric = lyrics.length > 0
+      ? Math.max(...lyrics.map((l) => (l.endTime > l.startTime ? l.endTime : l.startTime + 4)))
+      : 24;
+    setDuration(Math.max(maxLyric, 24));
   };
 
   // Stamp a specific line with the current timestamp
@@ -271,26 +323,18 @@ export function App() {
         e.preventDefault();
 
         if (isSyncing) {
-          if (spaceAction === 'create_new') {
-            handleAddNewLine(currentTime);
-          } else {
-            // Chế độ khớp câu có sẵn
-            if (currentSyncIndex < lyrics.length) {
-              handleStampLine(currentSyncIndex, currentTime);
-              setCurrentSyncIndex((prev) => Math.min(prev + 1, lyrics.length - 1));
-            } else {
-              setIsSyncing(false);
-            }
-          }
+          handleAddNewLine(currentTime);
         } else {
           togglePlay();
         }
+      } else if (e.key.toLowerCase() === 'f' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        setIsFullscreenPreview((prev) => !prev);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isSyncing, spaceAction, currentSyncIndex, currentTime, lyrics.length, isPlaying, audioUrl]);
+  }, [isSyncing, currentTime, lyrics.length, isPlaying, audioUrl]);
 
   return (
     <div className="flex flex-col h-screen w-screen bg-black text-zinc-100 overflow-hidden font-sans select-none">
@@ -298,8 +342,8 @@ export function App() {
       <Header
         aspectRatio={styling.aspectRatio}
         onAspectRatioChange={(ratio) => setStyling((prev) => ({ ...prev, aspectRatio: ratio }))}
-        motionPreset={styling.motionPreset}
-        onPresetChange={(preset) => setStyling((prev) => ({ ...prev, motionPreset: preset }))}
+        theme={styling.theme}
+        onThemeChange={(th) => setStyling((prev) => ({ ...prev, theme: th }))}
         showSafeZone={styling.showSafeZone}
         onToggleSafeZone={() => setStyling((prev) => ({ ...prev, showSafeZone: !prev.showSafeZone }))}
         onOpenExport={() => setIsExportOpen(true)}
@@ -315,8 +359,6 @@ export function App() {
               currentTime={currentTime}
               currentSyncIndex={currentSyncIndex}
               isSyncing={isSyncing}
-              spaceAction={spaceAction}
-              onSetSpaceAction={setSpaceAction}
               onUpdateLyrics={setLyrics}
               onSeek={handleSeek}
               onSetSyncIndex={setCurrentSyncIndex}
@@ -346,8 +388,18 @@ export function App() {
               <span>{showLyricsPanel ? '◀ Thu gọn Lời' : '▶ Mở bảng Lời'}</span>
             </button>
 
-            <div className="text-[10px] font-mono tracking-widest text-zinc-500 uppercase bg-black/60 px-2.5 py-1 rounded-full border border-zinc-800 backdrop-blur">
-              CANVAS PREVIEW • {styling.aspectRatio}
+            <div className="flex items-center space-x-2 pointer-events-auto">
+              <div className="text-[10px] font-mono tracking-widest text-zinc-500 uppercase bg-black/60 px-2.5 py-1 rounded-full border border-zinc-800 backdrop-blur">
+                CANVAS PREVIEW • {styling.aspectRatio}
+              </div>
+              <button
+                onClick={() => setIsFullscreenPreview(true)}
+                className="px-2.5 py-1 rounded-lg bg-zinc-900/80 hover:bg-zinc-800 border border-zinc-800 text-[11px] text-zinc-300 hover:text-white transition backdrop-blur flex items-center space-x-1 shadow-sm"
+                title="Xem preview toàn màn hình (Phím tắt F)"
+              >
+                <Maximize2 size={12} className="text-emerald-400" />
+                <span>Toàn màn hình (F)</span>
+              </button>
             </div>
 
             <button
@@ -388,6 +440,7 @@ export function App() {
         onTogglePlay={togglePlay}
         onSeek={handleSeek}
         onUploadAudio={handleUploadAudio}
+        onRemoveAudio={handleRemoveAudio}
         onReset={handleReset}
       />
 
@@ -399,6 +452,19 @@ export function App() {
         options={styling}
         duration={duration}
         audioUrl={audioUrl}
+      />
+
+      {/* 5. Fullscreen Realtime Preview (Rạp chiếu phim / Điện thoại thực tế) */}
+      <FullscreenPreview
+        isOpen={isFullscreenPreview}
+        onClose={() => setIsFullscreenPreview(false)}
+        lyrics={lyrics}
+        currentTime={currentTime}
+        duration={duration}
+        isPlaying={isPlaying}
+        options={styling}
+        onTogglePlay={togglePlay}
+        onSeek={handleSeek}
       />
     </div>
   );

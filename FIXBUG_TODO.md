@@ -13,6 +13,7 @@
 | `BUG-003` | Lỗi vỡ font tiếng Việt có dấu (Font Fallback) | `index.html`, `types.ts` | Medium | 🟢 Đã khắc phục |
 | `BUG-004` | Xuất video WebM không có âm thanh | `ExportModal.tsx` | High | 🟢 Đã khắc phục |
 | `BUG-005` | Chữ phụ kỹ thuật rác (Watermark/Metadata) đè lên video | `CanvasPreview.tsx` | Medium | 🟢 Đã khắc phục |
+| `BUG-007` | Xuất video bị kéo dài gấp đôi (2 phút) & mất hiệu ứng | `ExportModal.tsx` | Critical | 🟢 Đã khắc phục |
 
 ---
 

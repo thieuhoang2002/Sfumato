@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
-import { X, Download, Film, CheckCircle, AlertCircle, Sparkles, Volume2, VolumeX } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { X, Download, Film, CheckCircle, Volume2, VolumeX, RotateCcw, AlertTriangle } from 'lucide-react';
 import { LyricLine, StylingOptions } from '../types';
+import { formatTime } from '../utils/formatters';
+import { renderKineticFrame } from '../utils/kineticRenderer';
+import fixWebmDuration from 'fix-webm-duration';
 
 interface Props {
   isOpen: boolean;
@@ -19,12 +22,29 @@ export const ExportModal: React.FC<Props> = ({
   duration,
   audioUrl,
 }) => {
+  const isMp4Supported = typeof MediaRecorder !== 'undefined' && (
+    MediaRecorder.isTypeSupported('video/mp4;codecs=avc1,mp4a.40.2') ||
+    MediaRecorder.isTypeSupported('video/mp4;codecs=avc1') ||
+    MediaRecorder.isTypeSupported('video/mp4')
+  );
+
   const [fps, setFps] = useState<30 | 60>(60);
   const [resolution, setResolution] = useState<'1080p' | '720p'>('1080p');
+  const [exportFormat, setExportFormat] = useState<'mp4' | 'webm'>(() => isMp4Supported ? 'mp4' : 'webm');
   const [includeAudio, setIncludeAudio] = useState<boolean>(true);
   const [isExporting, setIsExporting] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [renderCurrentSec, setRenderCurrentSec] = useState(0);
   const [exportedUrl, setExportedUrl] = useState<string | null>(null);
+  const [exportedFormat, setExportedFormat] = useState<'mp4' | 'webm'>('mp4');
+
+  const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  const maxLyricTime = lyrics.length > 0
+    ? Math.max(...lyrics.map((l) => (l.endTime > l.startTime ? l.endTime : l.startTime + 3.5)))
+    : 0;
+  const validDuration = typeof duration === 'number' && !isNaN(duration) && duration > 0 ? duration : 0;
+  const totalDuration = Math.max(validDuration, maxLyricTime, 5);
 
   if (!isOpen) return null;
 
@@ -33,7 +53,14 @@ export const ExportModal: React.FC<Props> = ({
     setProgress(0);
     setExportedUrl(null);
 
-    // Kích thước xuất
+    // Đảm bảo font chữ đã được nạp hoàn chỉnh vào document
+    try {
+      await document.fonts.ready;
+    } catch {
+      // Bỏ qua nếu môi trường không hỗ trợ font API
+    }
+
+    // Kích thước xuất video
     let width = 1080;
     let height = 1920;
     if (options.aspectRatio === '1:1') {
@@ -59,6 +86,7 @@ export const ExportModal: React.FC<Props> = ({
     }
 
     const stream = canvas.captureStream(fps);
+    const videoTrack = stream.getVideoTracks()[0];
 
     // Chuẩn bị audio track nếu bật kèm nhạc
     let audioElement: HTMLAudioElement | null = null;
@@ -68,8 +96,13 @@ export const ExportModal: React.FC<Props> = ({
     if (includeAudio && audioUrl) {
       try {
         audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        if (audioCtx.state === 'suspended') {
+          await audioCtx.resume();
+        }
         audioElement = new Audio(audioUrl);
-        audioElement.crossOrigin = 'anonymous';
+        if (!audioUrl.startsWith('blob:')) {
+          audioElement.crossOrigin = 'anonymous';
+        }
         audioElement.currentTime = 0;
 
         audioSource = audioCtx.createMediaElementSource(audioElement);
@@ -85,13 +118,36 @@ export const ExportModal: React.FC<Props> = ({
       }
     }
 
-    const mediaRecorder = new MediaRecorder(stream, {
-      mimeType: MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+    // Lựa chọn codec theo định dạng người dùng chọn (MP4 hoặc WebM)
+    let selectedMimeType = '';
+    let actualExt: 'mp4' | 'webm' = exportFormat;
+
+    if (exportFormat === 'mp4') {
+      if (MediaRecorder.isTypeSupported('video/mp4;codecs=avc1,mp4a.40.2')) {
+        selectedMimeType = 'video/mp4;codecs=avc1,mp4a.40.2';
+      } else if (MediaRecorder.isTypeSupported('video/mp4;codecs=avc1')) {
+        selectedMimeType = 'video/mp4;codecs=avc1';
+      } else if (MediaRecorder.isTypeSupported('video/mp4')) {
+        selectedMimeType = 'video/mp4';
+      } else {
+        // Fallback sang webm nếu trình duyệt không hỗ trợ mp4
+        actualExt = 'webm';
+        selectedMimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+          ? 'video/webm;codecs=vp9,opus'
+          : 'video/webm';
+      }
+    } else {
+      actualExt = 'webm';
+      selectedMimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
         ? 'video/webm;codecs=vp9,opus'
         : MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
         ? 'video/webm;codecs=vp9'
-        : 'video/webm',
-      videoBitsPerSecond: 12000000, // 12 Mbps
+        : 'video/webm';
+    }
+
+    const mediaRecorder = new MediaRecorder(stream, {
+      mimeType: selectedMimeType || undefined,
+      videoBitsPerSecond: 14000000, // 14 Mbps cho hình ảnh sắc nét
     });
 
     const chunks: Blob[] = [];
@@ -99,10 +155,18 @@ export const ExportModal: React.FC<Props> = ({
       if (e.data.size > 0) chunks.push(e.data);
     };
 
-    mediaRecorder.onstop = () => {
-      const blob = new Blob(chunks, { type: 'video/webm' });
-      const url = URL.createObjectURL(blob);
+    mediaRecorder.onstop = async () => {
+      let finalBlob = new Blob(chunks, { type: selectedMimeType || 'video/webm' });
+      if (actualExt === 'webm') {
+        try {
+          finalBlob = await fixWebmDuration(finalBlob, totalDuration * 1000, { logger: false });
+        } catch (err) {
+          console.warn('Could not patch webm duration:', err);
+        }
+      }
+      const url = URL.createObjectURL(finalBlob);
       setExportedUrl(url);
+      setExportedFormat(actualExt);
       setIsExporting(false);
       setProgress(100);
 
@@ -110,93 +174,105 @@ export const ExportModal: React.FC<Props> = ({
         audioElement.pause();
       }
       if (audioCtx) {
-        audioCtx.close();
+        audioCtx.close().catch(() => {});
       }
     };
 
-    mediaRecorder.start();
+    mediaRecorder.start(250);
     if (audioElement) {
-      audioElement.play().catch(() => {});
+      audioElement.play().catch((err) => {
+        console.warn('Audio play failed in export:', err);
+      });
     }
 
-    // Render timeline
-    const totalDuration = Math.max(duration, 5);
-    const totalFrames = Math.round(totalDuration * fps);
-    let frame = 0;
+    const startExportTime = performance.now();
+    let animFrameId: number;
+    let isTerminated = false;
 
-    const renderInterval = setInterval(() => {
-      frame++;
-      const time = (frame / totalFrames) * totalDuration;
-      setProgress(Math.min(99, Math.round((frame / totalFrames) * 100)));
+    // Kích thước preview canvas
+    const pW = options.aspectRatio === '9:16' ? 270 : options.aspectRatio === '1:1' ? 270 : 360;
+    const pH = options.aspectRatio === '9:16' ? 480 : options.aspectRatio === '1:1' ? 270 : 202;
 
-      // 1. Nền đen thuần khiết #000000
-      ctx.fillStyle = '#000000';
-      ctx.fillRect(0, 0, width, height);
+    const renderLoop = () => {
+      if (isTerminated) return;
 
-      // 2. Tìm câu lyric hiện tại: kéo dài tới khi câu kế tiếp xuất hiện
+      const wallClockTime = (performance.now() - startExportTime) / 1000;
+      let currentTime = wallClockTime;
+      if (audioElement && includeAudio && !audioElement.paused && !audioElement.ended && audioElement.currentTime > 0) {
+        currentTime = audioElement.currentTime;
+      }
+
+      const pct = Math.min(99, Math.round((currentTime / totalDuration) * 100));
+      setProgress(pct);
+      setRenderCurrentSec(currentTime);
+
+      // 1. Sắp xếp danh sách lời bài hát đã đồng bộ
       const sorted = [...lyrics].filter((l) => l.synced).sort((a, b) => a.startTime - b.startTime);
-      let current: LyricLine | null = null;
-      for (let i = 0; i < sorted.length; i++) {
-        const l = sorted[i];
-        const nextLine = sorted[i + 1];
-        const effectiveEnd = nextLine ? nextLine.startTime : (l.endTime > l.startTime ? l.endTime : l.startTime + 10);
-        if (time >= l.startTime && time < effectiveEnd) {
-          current = l;
-          break;
+
+      // 2. Vẽ frame chuẩn xác 100% bằng engine thống nhất renderKineticFrame
+      renderKineticFrame(ctx, width, height, sorted, currentTime, options, false);
+
+      // 3. Yêu cầu track ghi nhận frame mới
+      try {
+        if (videoTrack && typeof (videoTrack as any).requestFrame === 'function') {
+          (videoTrack as any).requestFrame();
+        }
+      } catch {}
+
+      // 4. Cập nhật preview canvas đang hiển thị trong modal
+      if (previewCanvasRef.current) {
+        const pCtx = previewCanvasRef.current.getContext('2d');
+        if (pCtx) {
+          pCtx.drawImage(canvas, 0, 0, pW, pH);
         }
       }
 
-      if (current) {
-        ctx.save();
-        ctx.fillStyle = options.textColor;
-        ctx.font = `${options.fontWeight} ${Math.round(options.fontSize * (width / 420))}px "${options.fontFamily}", sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
+      // 5. Kiểm tra điều kiện kết thúc: chỉ kết thúc khi đã hoàn thành trọn vẹn totalDuration
+      const hasEnded = currentTime >= totalDuration;
 
-        if (options.glowEffect) {
-          ctx.shadowColor = 'rgba(255, 255, 255, 0.7)';
-          ctx.shadowBlur = options.glowIntensity * 20;
+      if (!hasEnded) {
+        animFrameId = requestAnimationFrame(renderLoop);
+      } else {
+        isTerminated = true;
+        cancelAnimationFrame(animFrameId);
+        if (mediaRecorder.state !== 'inactive') {
+          mediaRecorder.stop();
         }
-
-        // Vẽ chữ ở giữa màn hình
-        ctx.fillText(current.text, width / 2, height / 2);
-        ctx.restore();
       }
+    };
 
-      if (frame >= totalFrames) {
-        clearInterval(renderInterval);
-        mediaRecorder.stop();
-      }
-    }, 1000 / fps);
+    // Bắt đầu vòng lặp render đồng bộ
+    animFrameId = requestAnimationFrame(renderLoop);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4">
-      <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl flex flex-col space-y-5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-3 sm:p-4">
+      <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto p-5 shadow-2xl flex flex-col space-y-3.5">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-zinc-900 pb-3">
           <div className="flex items-center space-x-2">
             <Film size={18} className="text-white" />
-            <h3 className="font-semibold text-zinc-100">Xuất Video Nền Đen 60fps</h3>
+            <h3 className="font-semibold text-zinc-100 text-sm">Xuất Video Terminal / IDE Code</h3>
           </div>
           <button
             onClick={onClose}
-            className="text-zinc-500 hover:text-zinc-200 transition"
+            disabled={isExporting}
+            className="text-zinc-500 hover:text-zinc-200 transition disabled:opacity-30"
           >
             <X size={18} />
           </button>
         </div>
 
         {/* Audio Option Notice */}
-        <div className="p-3.5 rounded-xl bg-zinc-900/80 border border-zinc-800 text-xs space-y-3">
+        <div className="p-3 rounded-xl bg-zinc-900/80 border border-zinc-800 text-xs space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               {includeAudio && audioUrl ? (
-                <Volume2 size={16} className="text-emerald-400" />
+                <Volume2 size={15} className="text-emerald-400" />
               ) : (
-                <VolumeX size={16} className="text-zinc-500" />
+                <VolumeX size={15} className="text-zinc-500" />
               )}
-              <span className="font-semibold text-zinc-200">Kèm âm thanh bài hát vào video</span>
+              <span className="font-semibold text-zinc-200">Kèm âm thanh vào video</span>
             </div>
 
             <label className="relative inline-flex items-center cursor-pointer">
@@ -207,7 +283,7 @@ export const ExportModal: React.FC<Props> = ({
                 onChange={(e) => setIncludeAudio(e.target.checked)}
                 className="sr-only peer"
               />
-              <div className="w-9 h-5 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600 peer-disabled:opacity-40"></div>
+              <div className="w-8 h-4.5 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-emerald-600 peer-disabled:opacity-40"></div>
             </label>
           </div>
 
@@ -215,86 +291,161 @@ export const ExportModal: React.FC<Props> = ({
             {audioUrl ? (
               includeAudio ? (
                 <span className="text-emerald-400/90">
-                  ✓ <b>Có âm thanh:</b> Video xuất ra sẽ lồng sẵn nhạc/vocal đầy đủ, sẵn sàng để xem ngay hoặc đăng trực tiếp lên mạng xã hội.
+                  ✓ <b>Có âm thanh:</b> Lồng sẵn nhạc đầy đủ, sẵn sàng xem ngay hoặc đăng mạng xã hội.
                 </span>
               ) : (
                 <span className="text-zinc-400">
-                  ○ <b>Không có âm thanh (Câm):</b> Chỉ xuất video chữ nền đen để bạn đưa vào CapCut hòa trộn mà không bị trùng lặp với track nhạc gốc.
+                  ○ <b>Không có âm thanh (Câm):</b> Chỉ xuất chữ nền đen để đưa vào CapCut hòa trộn (Screen).
                 </span>
               )
             ) : (
               <span className="text-amber-400/80">
-                ⚠ Bạn chưa tải file nhạc lên. Video xuất ra sẽ là video câm (chỉ có chữ chuyển động).
+                ⚠ Chưa nạp nhạc. Video xuất ra sẽ là video câm (chỉ có chữ chuyển động).
               </span>
             )}
           </p>
         </div>
 
-        {/* Export Resolution & FPS */}
-        <div className="grid grid-cols-2 gap-3 text-xs">
+        {/* Cảnh báo quan trọng: Giữ tab nguyên vẹn khi render */}
+        <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-start space-x-2.5">
+          <AlertTriangle size={15} className="shrink-0 mt-0.5 text-amber-400" />
+          <div className="leading-relaxed text-[11px]">
+            <b>Quan trọng:</b> Vui lòng <u>giữ nguyên tab này</u>, không chuyển tab hay thu nhỏ trình duyệt trong lúc xuất video để tránh bị ngắt quãng hoặc đóng băng khung hình!
+          </div>
+        </div>
+
+        {/* Export Resolution & FPS & Format */}
+        <div className="grid grid-cols-3 gap-2 text-xs">
           <div>
-            <label className="text-zinc-400 mb-1.5 block">Độ phân giải</label>
+            <label className="text-zinc-400 mb-1 block text-[11px]">Định dạng</label>
+            <select
+              value={exportFormat}
+              onChange={(e) => setExportFormat(e.target.value as any)}
+              disabled={isExporting}
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-zinc-200 focus:outline-none text-xs"
+            >
+              {isMp4Supported && (
+                <option value="mp4">MP4 (Windows)</option>
+              )}
+              <option value="webm">WebM (VP9)</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="text-zinc-400 mb-1 block text-[11px]">Độ phân giải</label>
             <select
               value={resolution}
               onChange={(e) => setResolution(e.target.value as any)}
               disabled={isExporting}
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2.5 text-zinc-200 focus:outline-none"
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-zinc-200 focus:outline-none text-xs"
             >
-              <option value="1080p">1080p (Full HD Sắc nét)</option>
-              <option value="720p">720p (Nhanh nhẹ)</option>
+              <option value="1080p">1080p (FHD)</option>
+              <option value="720p">720p (HD)</option>
             </select>
           </div>
 
           <div>
-            <label className="text-zinc-400 mb-1.5 block">Tốc độ khung hình (FPS)</label>
+            <label className="text-zinc-400 mb-1 block text-[11px]">Khung hình</label>
             <select
               value={fps}
               onChange={(e) => setFps(Number(e.target.value) as any)}
               disabled={isExporting}
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2.5 text-zinc-200 focus:outline-none"
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-zinc-200 focus:outline-none text-xs"
             >
-              <option value="60">60 FPS (Siêu mượt chuẩn Kinetic)</option>
-              <option value="30">30 FPS (Tiết kiệm dung lượng)</option>
+              <option value="60">60 FPS (Mượt)</option>
+              <option value="30">30 FPS (Nhẹ)</option>
             </select>
           </div>
         </div>
 
-        {/* Progress or Actions */}
-        {isExporting ? (
-          <div className="space-y-2 pt-2">
-            <div className="flex justify-between text-xs text-zinc-400">
-              <span>Đang kết xuất khung hình {includeAudio && audioUrl ? '& âm thanh' : ''}...</span>
-              <span className="font-mono text-white">{progress}%</span>
-            </div>
-            <div className="h-2 w-full bg-zinc-900 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-white transition-all duration-150"
-                style={{ width: `${progress}%` }}
+        {/* Live Exporting Progress Preview */}
+        {isExporting && (
+          <div className="space-y-2.5 pt-1">
+            <div className="relative rounded-xl overflow-hidden bg-black border border-zinc-800 p-2 flex flex-col items-center justify-center">
+              <canvas
+                ref={previewCanvasRef}
+                width={options.aspectRatio === '9:16' ? 270 : options.aspectRatio === '1:1' ? 270 : 360}
+                height={options.aspectRatio === '9:16' ? 480 : options.aspectRatio === '1:1' ? 270 : 202}
+                className="rounded-lg object-contain max-h-[160px] shadow-lg border border-zinc-900"
               />
-            </div>
-          </div>
-        ) : exportedUrl ? (
-          <div className="flex flex-col space-y-3 pt-2">
-            <div className="p-3 bg-emerald-950/40 border border-emerald-500/30 rounded-lg text-emerald-400 text-xs flex items-center space-x-2">
-              <CheckCircle size={16} />
-              <span>
-                Kết xuất hoàn tất ({includeAudio && audioUrl ? 'Có âm thanh' : 'Video câm / Mute'})!
+              <span className="text-[10px] text-zinc-500 font-mono mt-1.5 animate-pulse">
+                ● Đang ghi hình trực tiếp frame-by-frame...
               </span>
             </div>
 
-            <a
-              href={exportedUrl}
-              download={`sfumato_lyrics_black_${options.aspectRatio.replace(':', 'x')}_60fps.webm`}
-              className="w-full py-3 bg-white text-black font-semibold rounded-lg hover:bg-zinc-200 transition text-xs flex items-center justify-center space-x-2 shadow-lg"
-            >
-              <Download size={14} />
-              <span>Tải Video Nền Đen Về Máy</span>
-            </a>
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-xs text-zinc-400">
+                <span className="flex items-center space-x-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                  <span>
+                    Đang kết xuất {includeAudio && audioUrl ? 'video & nhạc' : 'video'}:{' '}
+                    <b className="text-white font-mono">{formatTime(renderCurrentSec)}</b> / {formatTime(totalDuration)}
+                  </span>
+                </span>
+                <span className="font-mono text-emerald-400 font-bold">{progress}%</span>
+              </div>
+              <div className="h-2 w-full bg-zinc-900 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-white transition-all duration-150"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            </div>
           </div>
-        ) : (
+        )}
+
+        {/* Exported Result View with in-modal Video Player & Re-export button */}
+        {!isExporting && exportedUrl ? (
+          <div className="flex flex-col space-y-2.5 pt-1">
+            <div className="p-2.5 bg-emerald-950/40 border border-emerald-500/30 rounded-lg text-emerald-400 text-xs flex items-center space-x-2">
+              <CheckCircle size={15} />
+              <span>
+                Kết xuất hoàn tất ({totalDuration.toFixed(1)}s, định dạng {exportedFormat.toUpperCase()})!
+              </span>
+            </div>
+
+            {/* Trình phát xem thử video trực tiếp ngay trong trình duyệt */}
+            <div className="relative rounded-xl overflow-hidden bg-black border border-zinc-800 p-1 flex items-center justify-center shadow-inner">
+              <video
+                src={exportedUrl}
+                controls
+                autoPlay
+                playsInline
+                className="max-h-[170px] w-auto rounded-lg object-contain mx-auto"
+              />
+            </div>
+
+            <div className="text-[11px] text-zinc-400 bg-zinc-900/60 p-2 rounded-lg border border-zinc-800/80 leading-relaxed">
+              💡 <b>Xem thử:</b> Bấm Play ngay trong khung trên để xem toàn bộ video {totalDuration.toFixed(0)}s trước khi tải về.
+            </div>
+
+            {/* Hai nút: Làm Lại và Tải Video */}
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                onClick={() => {
+                  setExportedUrl(null);
+                  setProgress(0);
+                }}
+                className="w-full py-2.5 bg-zinc-900 border border-zinc-800 text-zinc-300 font-medium rounded-lg hover:bg-zinc-800 hover:text-white transition text-xs flex items-center justify-center space-x-1.5 shadow"
+              >
+                <RotateCcw size={14} />
+                <span>Làm Lại / Xuất Lại</span>
+              </button>
+
+              <a
+                href={exportedUrl}
+                download={`sfumato_lyrics_black_${options.aspectRatio.replace(':', 'x')}_60fps.${exportedFormat}`}
+                className="w-full py-2.5 bg-white text-black font-semibold rounded-lg hover:bg-zinc-200 transition text-xs flex items-center justify-center space-x-1.5 shadow-lg"
+              >
+                <Download size={14} />
+                <span>Tải Video ({exportedFormat.toUpperCase()})</span>
+              </a>
+            </div>
+          </div>
+        ) : !isExporting && (
           <button
             onClick={startExport}
-            className="w-full py-3 bg-white text-black font-semibold rounded-lg hover:bg-zinc-200 transition text-xs flex items-center justify-center space-x-2 shadow-lg"
+            className="w-full py-2.5 bg-white text-black font-semibold rounded-lg hover:bg-zinc-200 transition text-xs flex items-center justify-center space-x-2 shadow-lg"
           >
             <Film size={14} />
             <span>Bắt Đầu Kết Xuất Video</span>

@@ -1,6 +1,5 @@
 import React from 'react';
 import { AspectRatio } from '../types';
-import { Heart, MessageCircle, Bookmark, Share2, Disc3, Music2 } from 'lucide-react';
 
 interface Props {
   aspectRatio: AspectRatio;
@@ -13,56 +12,44 @@ export const SafeZoneOverlay: React.FC<Props> = ({ aspectRatio, show }) => {
   if (aspectRatio === '9:16') {
     return (
       <div className="absolute inset-0 pointer-events-none z-20 flex flex-col justify-between p-4 overflow-hidden border border-red-500/20">
-        {/* Top Header Mockup */}
-        <div className="flex items-center justify-between text-white/40 text-xs px-2 pt-2 border-b border-white/5 pb-2">
-          <div className="flex space-x-4 mx-auto font-medium tracking-wide">
-            <span>Đang Follow</span>
-            <span className="text-white/80 font-bold border-b-2 border-white pb-0.5">Dành cho bạn</span>
-          </div>
+        {/* Top Danger Zone Indicator */}
+        <div 
+          className="absolute inset-x-0 top-0 bg-red-500/5 border-b border-dashed border-red-500/20 flex items-center justify-center text-[10px] text-red-400/60 font-mono"
+          style={{ height: '11.46%' }}
+        >
+          <span>▲ Mép trên 220px</span>
         </div>
 
-        {/* Center Safe Box Guide */}
-        <div className="absolute inset-x-8 top-[18%] bottom-[25%] border border-dashed border-emerald-400/40 rounded-lg flex items-center justify-center">
-          <span className="absolute top-2 left-2 text-[10px] tracking-wider text-emerald-400/60 uppercase font-mono bg-black/60 px-1.5 py-0.5 rounded">
-            Safe Zone (Vùng chữ hiển thị đẹp)
-          </span>
+        {/* Bottom Danger Zone Indicator */}
+        <div 
+          className="absolute inset-x-0 bottom-0 bg-red-500/5 border-t border-dashed border-red-500/20 flex items-center justify-center text-[10px] text-red-400/60 font-mono"
+          style={{ height: '14.58%' }}
+        >
+          <span>▼ Mép dưới 280px</span>
         </div>
 
-        {/* Right Action Icons Mockup */}
-        <div className="absolute right-3 bottom-24 flex flex-col items-center space-y-4 text-white/50">
-          <div className="w-10 h-10 rounded-full border border-white/30 bg-zinc-800/80 flex items-center justify-center text-[10px]">
-            Avatar
+        {/* Center Safe Box Guide (Chuẩn 960 × 1420 px trên khung 1080 × 1920) */}
+        <div 
+          className="absolute border-2 border-dashed border-emerald-400/60 rounded-xl flex flex-col justify-between p-2 pointer-events-none shadow-[0_0_20px_rgba(52,211,153,0.1)]"
+          style={{
+            top: '11.46%',    // 220px / 1920px
+            bottom: '14.58%', // 280px / 1920px
+            left: '5.56%',    // 60px / 1080px
+            right: '5.56%',   // 60px / 1080px
+          }}
+        >
+          <div className="flex justify-between items-center">
+            <span className="text-[9px] tracking-wider text-emerald-400 font-bold uppercase font-mono bg-black/80 px-2 py-0.5 rounded border border-emerald-500/30">
+              SAFE ZONE • 960 × 1420 px
+            </span>
+            <span className="text-[8px] font-mono text-emerald-400/80 bg-black/70 px-1.5 py-0.5 rounded">
+              L/R: 60px
+            </span>
           </div>
-          <div className="flex flex-col items-center">
-            <Heart size={24} className="text-white/60" />
-            <span className="text-[10px] mt-0.5">88.5K</span>
-          </div>
-          <div className="flex flex-col items-center">
-            <MessageCircle size={24} className="text-white/60" />
-            <span className="text-[10px] mt-0.5">1.2K</span>
-          </div>
-          <div className="flex flex-col items-center">
-            <Bookmark size={24} className="text-white/60" />
-            <span className="text-[10px] mt-0.5">5.4K</span>
-          </div>
-          <div className="flex flex-col items-center">
-            <Share2 size={24} className="text-white/60" />
-            <span className="text-[10px] mt-0.5">Share</span>
-          </div>
-          <div className="animate-spin duration-3000">
-            <Disc3 size={24} className="text-white/60" />
-          </div>
-        </div>
-
-        {/* Bottom Captions & Audio Mockup */}
-        <div className="space-y-1.5 pr-16 pl-2 pb-2 text-white/60">
-          <div className="font-semibold text-xs text-white/90">@artist.official</div>
-          <div className="text-[11px] text-zinc-400 line-clamp-2">
-            Bài hát mới sáng tác tối qua, hy vọng chạm đến trái tim bạn... #sfumato #lyrics #indie
-          </div>
-          <div className="flex items-center text-[10px] space-x-1.5 text-zinc-400 pt-1">
-            <Music2 size={12} />
-            <span className="truncate">Âm thanh gốc - Artist Official</span>
+          <div className="text-right">
+            <span className="text-[8px] font-mono text-emerald-400/60 bg-black/70 px-1.5 py-0.5 rounded">
+              1080 × 1920 (9:16)
+            </span>
           </div>
         </div>
       </div>

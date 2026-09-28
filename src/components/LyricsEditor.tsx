@@ -11,8 +11,6 @@ interface Props {
   currentTime: number;
   currentSyncIndex: number;
   isSyncing: boolean;
-  spaceAction: 'create_new' | 'sync_existing';
-  onSetSpaceAction: (action: 'create_new' | 'sync_existing') => void;
   onUpdateLyrics: (lines: LyricLine[]) => void;
   onSeek: (time: number) => void;
   onSetSyncIndex: (index: number) => void;
@@ -37,8 +35,6 @@ export const LyricsEditor: React.FC<Props> = ({
   currentTime,
   currentSyncIndex,
   isSyncing,
-  spaceAction,
-  onSetSpaceAction,
   onUpdateLyrics,
   onSeek,
   onSetSyncIndex,
@@ -160,33 +156,15 @@ export const LyricsEditor: React.FC<Props> = ({
           </button>
         </div>
 
-        {/* Spacebar Action Selector */}
-        <div className="flex items-center bg-black/50 p-1 rounded-lg border border-zinc-800 text-[11px]">
-          <button
-            onClick={() => onSetSpaceAction('create_new')}
-            className={`flex-1 py-1 rounded transition text-center flex items-center justify-center space-x-1 ${
-              spaceAction === 'create_new'
-                ? 'bg-zinc-800 text-white font-medium shadow-sm'
-                : 'text-zinc-500 hover:text-zinc-300'
-            }`}
-            title="Mỗi lần bấm Space sẽ tạo ngay 1 ô lyrics mới tại giây đang phát"
-          >
-            <Plus size={12} />
-            <span>Space: Tạo ô mới</span>
-          </button>
-
-          <button
-            onClick={() => onSetSpaceAction('sync_existing')}
-            className={`flex-1 py-1 rounded transition text-center flex items-center justify-center space-x-1 ${
-              spaceAction === 'sync_existing'
-                ? 'bg-zinc-800 text-white font-medium shadow-sm'
-                : 'text-zinc-500 hover:text-zinc-300'
-            }`}
-            title="Gõ Space để khớp mốc lần lượt cho danh sách câu đã dán"
-          >
-            <Clock size={12} />
-            <span>Space: Khớp câu có sẵn</span>
-          </button>
+        {/* Hướng dẫn phím Space */}
+        <div className="bg-black/40 px-2.5 py-1.5 rounded-lg border border-zinc-850 flex items-center justify-between text-[11px] text-zinc-400">
+          <span className="flex items-center space-x-1.5">
+            <kbd className="px-1.5 py-0.5 bg-zinc-800 border border-zinc-700 rounded font-mono text-[10px] text-zinc-200">Space</kbd>
+            <span>Tạo ô lyrics mới theo nhịp nhạc</span>
+          </span>
+          {isSyncing && (
+            <span className="text-emerald-400 font-mono text-[10px] font-semibold animate-pulse">● Live</span>
+          )}
         </div>
 
         {/* Action Buttons: Quick Add & Chain Seamless */}
@@ -352,23 +330,26 @@ export const LyricsEditor: React.FC<Props> = ({
                   {/* Text display / Inline Edit */}
                   {isEditing ? (
                     <div className="space-y-1.5">
-                      <input
-                        type="text"
+                      <textarea
                         value={editingText}
                         onChange={(e) => setEditingText(e.target.value)}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') saveEditLine(line.id);
+                          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                            e.preventDefault();
+                            saveEditLine(line.id);
+                          }
                           if (e.key === 'Escape') cancelEditLine();
                         }}
                         autoFocus
-                        placeholder="Nhập lời bài hát (tiếng Việt có dấu)..."
-                        className="w-full bg-black border border-emerald-500/70 rounded-lg px-2.5 py-1.5 text-white font-sans text-xs focus:outline-none"
+                        rows={Math.min(4, Math.max(2, editingText.split('\n').length))}
+                        placeholder="Nhập lời bài hát (Enter: xuống dòng, Ctrl+Enter: Lưu)..."
+                        className="w-full bg-black border border-emerald-500/70 rounded-lg px-2.5 py-1.5 text-white font-sans text-xs focus:outline-none resize-none leading-relaxed"
                       />
                       <div className="text-[10px] text-zinc-500 flex justify-between">
-                        <span>Nhấn Enter để lưu • Esc để hủy</span>
+                        <span>Enter: xuống dòng • Ctrl+Enter: Lưu</span>
                         <button
                           onClick={() => saveEditLine(line.id)}
-                          className="text-emerald-400 hover:underline"
+                          className="text-emerald-400 hover:underline font-semibold"
                         >
                           Lưu ngay
                         </button>
@@ -384,10 +365,10 @@ export const LyricsEditor: React.FC<Props> = ({
                       className="font-medium text-zinc-200 cursor-pointer text-sm leading-snug hover:text-white group flex items-center justify-between"
                       title="Click đúp để sửa lời"
                     >
-                      <span className={line.text ? '' : 'italic text-zinc-600'}>
+                      <span className={`whitespace-pre-line ${line.text ? '' : 'italic text-zinc-600'}`}>
                         {line.text || '(Chưa có lời - Click đúp để nhập)'}
                       </span>
-                      <Edit3 size={11} className="opacity-0 group-hover:opacity-60 text-zinc-400 transition" />
+                      <Edit3 size={11} className="opacity-0 group-hover:opacity-60 text-zinc-400 transition shrink-0 ml-2" />
                     </div>
                   )}
 
