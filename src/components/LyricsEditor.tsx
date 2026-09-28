@@ -11,8 +11,6 @@ interface Props {
   currentTime: number;
   currentSyncIndex: number;
   isSyncing: boolean;
-  spaceAction: 'create_new' | 'sync_existing';
-  onSetSpaceAction: (action: 'create_new' | 'sync_existing') => void;
   onUpdateLyrics: (lines: LyricLine[]) => void;
   onSeek: (time: number) => void;
   onSetSyncIndex: (index: number) => void;
@@ -37,8 +35,6 @@ export const LyricsEditor: React.FC<Props> = ({
   currentTime,
   currentSyncIndex,
   isSyncing,
-  spaceAction,
-  onSetSpaceAction,
   onUpdateLyrics,
   onSeek,
   onSetSyncIndex,
@@ -160,33 +156,15 @@ export const LyricsEditor: React.FC<Props> = ({
           </button>
         </div>
 
-        {/* Spacebar Action Selector */}
-        <div className="flex items-center bg-black/50 p-1 rounded-lg border border-zinc-800 text-[11px]">
-          <button
-            onClick={() => onSetSpaceAction('create_new')}
-            className={`flex-1 py-1 rounded transition text-center flex items-center justify-center space-x-1 ${
-              spaceAction === 'create_new'
-                ? 'bg-zinc-800 text-white font-medium shadow-sm'
-                : 'text-zinc-500 hover:text-zinc-300'
-            }`}
-            title="Mỗi lần bấm Space sẽ tạo ngay 1 ô lyrics mới tại giây đang phát"
-          >
-            <Plus size={12} />
-            <span>Space: Tạo ô mới</span>
-          </button>
-
-          <button
-            onClick={() => onSetSpaceAction('sync_existing')}
-            className={`flex-1 py-1 rounded transition text-center flex items-center justify-center space-x-1 ${
-              spaceAction === 'sync_existing'
-                ? 'bg-zinc-800 text-white font-medium shadow-sm'
-                : 'text-zinc-500 hover:text-zinc-300'
-            }`}
-            title="Gõ Space để khớp mốc lần lượt cho danh sách câu đã dán"
-          >
-            <Clock size={12} />
-            <span>Space: Khớp câu có sẵn</span>
-          </button>
+        {/* Hướng dẫn phím Space */}
+        <div className="bg-black/40 px-2.5 py-1.5 rounded-lg border border-zinc-850 flex items-center justify-between text-[11px] text-zinc-400">
+          <span className="flex items-center space-x-1.5">
+            <kbd className="px-1.5 py-0.5 bg-zinc-800 border border-zinc-700 rounded font-mono text-[10px] text-zinc-200">Space</kbd>
+            <span>Tạo ô lyrics mới theo nhịp nhạc</span>
+          </span>
+          {isSyncing && (
+            <span className="text-emerald-400 font-mono text-[10px] font-semibold animate-pulse">● Live</span>
+          )}
         </div>
 
         {/* Action Buttons: Quick Add & Chain Seamless */}

@@ -63,7 +63,6 @@ export function App() {
   // Tap-to-Sync Engine state
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [currentSyncIndex, setCurrentSyncIndex] = useState<number>(0);
-  const [spaceAction, setSpaceAction] = useState<'create_new' | 'sync_existing'>('create_new');
 
   // Panel visibility toggles
   const [showLyricsPanel, setShowLyricsPanel] = useState<boolean>(true);
@@ -276,17 +275,7 @@ export function App() {
         e.preventDefault();
 
         if (isSyncing) {
-          if (spaceAction === 'create_new') {
-            handleAddNewLine(currentTime);
-          } else {
-            // Chế độ khớp câu có sẵn
-            if (currentSyncIndex < lyrics.length) {
-              handleStampLine(currentSyncIndex, currentTime);
-              setCurrentSyncIndex((prev) => Math.min(prev + 1, lyrics.length - 1));
-            } else {
-              setIsSyncing(false);
-            }
-          }
+          handleAddNewLine(currentTime);
         } else {
           togglePlay();
         }
@@ -297,7 +286,7 @@ export function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isSyncing, spaceAction, currentSyncIndex, currentTime, lyrics.length, isPlaying, audioUrl]);
+  }, [isSyncing, currentTime, lyrics.length, isPlaying, audioUrl]);
 
   return (
     <div className="flex flex-col h-screen w-screen bg-black text-zinc-100 overflow-hidden font-sans select-none">
@@ -322,8 +311,6 @@ export function App() {
               currentTime={currentTime}
               currentSyncIndex={currentSyncIndex}
               isSyncing={isSyncing}
-              spaceAction={spaceAction}
-              onSetSpaceAction={setSpaceAction}
               onUpdateLyrics={setLyrics}
               onSeek={handleSeek}
               onSetSyncIndex={setCurrentSyncIndex}
