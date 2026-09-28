@@ -188,8 +188,8 @@ export const FullscreenPreview: React.FC<Props> = ({
               <span>{isPlaying ? 'Tạm dừng' : 'Phát nhạc'}</span>
             </button>
 
-            <div className="text-[11px] font-mono text-zinc-400">
-              {options.motionPreset.toUpperCase()}
+            <div className="text-[11px] font-mono text-zinc-400 uppercase">
+              {options.theme} • {options.language}
             </div>
           </div>
         </div>

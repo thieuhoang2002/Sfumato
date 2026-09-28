@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { LyricLine, StylingOptions, AspectRatio } from '../types';
-import { SafeZoneOverlay } from './SafeZoneOverlay';
+import { THEMES } from '../utils/themePresets';
+import { formatTime } from '../utils/formatters';
 
 interface Props {
   lyrics: LyricLine[];
@@ -10,7 +10,6 @@ interface Props {
   canvasRef?: React.RefObject<HTMLDivElement | null>;
 }
 
-// Virtual Canvas Canonical Coordinate Reference
 const VIRTUAL_DIMS: Record<AspectRatio, { width: number; height: number }> = {
   '9:16': { width: 360, height: 640 },
   '1:1': { width: 540, height: 540 },
@@ -21,14 +20,26 @@ export const KineticCanvas: React.FC<Props> = ({
   lyrics,
   currentTime,
   options,
-  canvasRef
+  canvasRef: externalCanvasRef,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const internalCanvasRef = useRef<HTMLDivElement>(null);
+  const activeCanvasRef = externalCanvasRef || internalCanvasRef;
   const [scale, setScale] = useState(1);
+  const [cursorVisible, setCursorVisible] = useState(true);
 
   const virtualDims = VIRTUAL_DIMS[options.aspectRatio];
+  const theme = THEMES[options.theme] || THEMES['vscode-dark'];
 
-  // Tự động tính toán hệ số scale GPU để canvas luôn vừa vặn hoàn hảo trong khung hiển thị
+  // Blinking cursor timer (530ms standard terminal blink)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCursorVisible((prev) => !prev);
+    }, 530);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Tự động scale vừa khít khung preview mà vẫn giữ đúng tỷ lệ virtual
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -36,7 +47,7 @@ export const KineticCanvas: React.FC<Props> = ({
     const updateScale = () => {
       if (!el) return;
       const rect = el.getBoundingClientRect();
-      const pad = 24;
+      const pad = 16;
       const maxW = Math.max(80, rect.width - pad);
       const maxH = Math.max(80, rect.height - pad);
       const s = Math.min(maxW / virtualDims.width, maxH / virtualDims.height);
@@ -49,64 +60,79 @@ export const KineticCanvas: React.FC<Props> = ({
     return () => ro.disconnect();
   }, [virtualDims]);
 
-  // Tìm câu hiện tại đang phát: kéo dài cho tới khi ô lyrics kế tiếp xuất hiện
-  const currentLine = useMemo(() => {
-    const sorted = [...lyrics].filter((l) => l.synced).sort((a, b) => a.startTime - b.startTime);
-    for (let i = 0; i < sorted.length; i++) {
-      const line = sorted[i];
-      const nextLine = sorted[i + 1];
-      const effectiveEnd = nextLine ? nextLine.startTime : (line.endTime > line.startTime ? line.endTime : line.startTime + 10);
+  // Sắp xếp danh sách lyrics theo thời gian
+  const sortedLyrics = useMemo(() => {
+    return [...lyrics].filter((l) => l.synced).sort((a, b) => a.startTime - b.startTime);
+  }, [lyrics]);
+
+  // Tìm vị trí dòng active
+  const activeIndex = useMemo(() => {
+    for (let i = 0; i < sortedLyrics.length; i++) {
+      const line = sortedLyrics[i];
+      const nextLine = sortedLyrics[i + 1];
+      const effectiveEnd = nextLine ? nextLine.startTime : (line.endTime > line.startTime ? line.endTime : line.startTime + 8);
       if (currentTime >= line.startTime && currentTime < effectiveEnd) {
-        return line;
+        return i;
       }
     }
-    return null;
-  }, [lyrics, currentTime]);
+    return -1;
+  }, [sortedLyrics, currentTime]);
 
-  // Phân tích câu thành danh sách từ và xác định Hero Word
-  const analyzedWords = useMemo(() => {
-    if (!currentLine) return [];
-    const rawWords = currentLine.text.trim().split(/\s+/).filter(Boolean);
-    if (rawWords.length === 0) return [];
+  const activeLine = activeIndex >= 0 ? sortedLyrics[activeIndex] : null;
 
-    let maxLen = 0;
-    let heroIndex = Math.floor(rawWords.length / 2);
-    rawWords.forEach((w, idx) => {
-      const clean = w.replace(/[.,?!…—]/g, '');
-      if (clean.length > maxLen) {
-        maxLen = clean.length;
-        heroIndex = idx;
-      }
-    });
+  // Tính số ký tự typewriter đang gõ của câu active
+  const typedLength = useMemo(() => {
+    if (!activeLine || !options.typewriterEffect) return activeLine ? activeLine.text.length : 0;
+    const duration = Math.max(0.6, (activeLine.endTime - activeLine.startTime) * 0.7);
+    const elapsed = Math.max(0, currentTime - activeLine.startTime);
+    const progress = Math.min(1, elapsed / duration);
+    return Math.floor(activeLine.text.length * progress);
+  }, [activeLine, currentTime, options.typewriterEffect]);
 
-    return rawWords.map((word, idx) => ({
-      id: `w-${currentLine.id}-${idx}`,
-      text: options.textCase === 'uppercase' 
-        ? word.toUpperCase() 
-        : options.textCase === 'lowercase' 
-        ? word.toLowerCase() 
-        : word,
-      isHero: idx === heroIndex && rawWords.length > 1,
-    }));
-  }, [currentLine, options.textCase]);
+  // Icon ngôn ngữ ở tab
+  const langBadge = useMemo(() => {
+    switch (options.language) {
+      case 'typescript':
+        return { label: 'TS', color: '#3178c6' };
+      case 'python':
+        return { label: 'PY', color: '#3572A5' };
+      case 'bash':
+        return { label: '>_', color: '#4ade80' };
+      default:
+        return { label: '#', color: '#a855f7' };
+    }
+  }, [options.language]);
 
-  // Base font style
-  const fontStyle = useMemo(() => {
-    return {
-      fontFamily: `"${options.fontFamily}", sans-serif`,
-      letterSpacing: `${options.letterSpacing}em`,
-      lineHeight: options.lineHeight,
-      color: options.textColor,
-      textShadow: options.glowEffect 
-        ? `0 0 ${options.glowIntensity * 28}px rgba(255,255,255,${options.glowIntensity * 0.75})` 
-        : 'none',
-      fontWeight: options.fontWeight,
-    };
-  }, [options]);
+  // Ký tự con trỏ
+  const cursorChar = useMemo(() => {
+    switch (options.cursorStyle) {
+      case 'line':
+        return '|';
+      case 'underscore':
+        return '_';
+      case 'block':
+      default:
+        return '▋';
+    }
+  }, [options.cursorStyle]);
+
+  // Độ dịch chuyển cuộn để dòng active luôn ở khoảng giữa khung hình
+  const lineHeightPx = options.fontSize * (options.lineHeight || 1.6);
+  const scrollOffset = useMemo(() => {
+    if (activeIndex === -1) return 0;
+    // Căn activeIndex nằm ở vị trí 40% từ trên xuống
+    const targetY = activeIndex * lineHeightPx;
+    const windowCenter = virtualDims.height * 0.38;
+    return Math.max(0, targetY - windowCenter);
+  }, [activeIndex, lineHeightPx, virtualDims.height]);
 
   return (
-    <div ref={containerRef} className="relative flex items-center justify-center w-full h-full p-2 overflow-hidden select-none">
-      {/* Khung kích thước thực tế chiếm chỗ trong luồng hiển thị */}
+    <div
+      ref={containerRef}
+      className="relative flex items-center justify-center w-full h-full p-2 overflow-hidden select-none"
+      style={{ backgroundColor: theme.appBg }}
+    >
+      {/* Box kích thước chiếm chỗ */}
       <div
         style={{
           width: `${virtualDims.width * scale}px`,
@@ -114,412 +140,261 @@ export const KineticCanvas: React.FC<Props> = ({
         }}
         className="relative flex items-center justify-center shrink-0"
       >
-        {/* Studio Black Canvas Box - Khóa cứng tọa độ ảo tuyệt đối */}
-        <div 
-          ref={canvasRef}
+        {/* Khung IDE Window chuẩn Virtual Pixel */}
+        <div
+          ref={activeCanvasRef}
           id="sfumato-render-canvas"
-          className="relative bg-black overflow-hidden rounded-2xl shadow-2xl border border-zinc-800/80 flex items-center justify-center shrink-0"
-          style={{ 
-            backgroundColor: '#000000',
+          className="relative overflow-hidden rounded-2xl shadow-2xl flex flex-col shrink-0 border"
+          style={{
             width: `${virtualDims.width}px`,
             height: `${virtualDims.height}px`,
             transform: `scale(${scale})`,
             transformOrigin: 'center center',
+            backgroundColor: theme.bg,
+            borderColor: theme.titleBarBorder,
+            fontFamily: `"${options.fontFamily}", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace`,
           }}
         >
-          {/* Safe Zone Simulation */}
-          <SafeZoneOverlay aspectRatio={options.aspectRatio} show={options.showSafeZone} />
-
-          {/* Trung Tâm: CHỈ DUY NHẤT LỜI BÀI HÁT (LYRICS) NGHỆ THUẬT */}
-          <div 
-            className="relative z-10 w-full h-full flex flex-col justify-center items-center text-center overflow-hidden"
-            style={{ 
-              textAlign: options.alignment,
-              paddingTop: options.aspectRatio === '9:16' ? '11.46%' : '1.5rem',
-              paddingBottom: options.aspectRatio === '9:16' ? '14.58%' : '1.5rem',
-              paddingLeft: options.aspectRatio === '9:16' ? '5.56%' : '1.5rem',
-              paddingRight: options.aspectRatio === '9:16' ? '5.56%' : '1.5rem',
+          {/* 1. IDE TITLE BAR & TABS */}
+          <div
+            className="flex items-center justify-between px-3 py-2 border-b select-none shrink-0"
+            style={{
+              backgroundColor: theme.titleBarBg,
+              borderColor: theme.titleBarBorder,
             }}
           >
-          <AnimatePresence mode="wait">
-            {currentLine ? (
-              <motion.div
-                key={currentLine.id}
-                className="w-full flex flex-col items-center justify-center"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0, transition: { duration: 0.25 } }}
+            {/* Left: macOS Window Traffic Lights */}
+            <div className="flex items-center space-x-1.5 w-16">
+              {options.showMacDots && (
+                <>
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f56] shadow-sm" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e] shadow-sm" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#27c93f] shadow-sm" />
+                </>
+              )}
+            </div>
+
+            {/* Center: File Tab */}
+            <div
+              className="flex items-center space-x-1.5 px-3 py-1 rounded-md text-[11px] font-medium border"
+              style={{
+                backgroundColor: theme.tabActiveBg,
+                borderColor: theme.titleBarBorder,
+                color: theme.titleBarText,
+              }}
+            >
+              <span
+                className="text-[9px] font-black px-1 rounded"
+                style={{ backgroundColor: `${langBadge.color}25`, color: langBadge.color }}
               >
-                {/* 🌟 PRESET 1: SHATTER & ASSEMBLE (Tách rời tản mác 4 phương -> Hút xoáy hợp nhất va đập) */}
-                {options.motionPreset === 'shatter-assemble' && (
-                  <div className="flex flex-wrap justify-center items-center gap-x-3.5 gap-y-2.5 max-w-[95%]">
-                    {analyzedWords.map((word, wIdx) => {
-                      const angle = (wIdx / analyzedWords.length) * Math.PI * 2;
-                      const initialX = Math.cos(angle) * 160 + (wIdx % 2 === 0 ? -30 : 30);
-                      const initialY = Math.sin(angle) * 130 + (wIdx % 3 === 0 ? -40 : 40);
-                      const initialRotate = (wIdx % 2 === 0 ? -1 : 1) * (25 + wIdx * 8);
+                {langBadge.label}
+              </span>
+              <span>{options.fileName || 'lyrics.ts'}</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-zinc-500 opacity-60" />
+            </div>
 
-                      return (
-                        <motion.span
-                          key={word.id}
-                          initial={{
-                            opacity: 0,
-                            x: initialX,
-                            y: initialY,
-                            scale: 2.2,
-                            rotate: initialRotate,
-                            filter: 'blur(12px)',
-                          }}
-                          animate={{
-                            opacity: 1,
-                            x: 0,
-                            y: 0,
-                            scale: 1,
-                            rotate: 0,
-                            filter: 'blur(0px)',
-                          }}
-                          exit={{
-                            opacity: 0,
-                            scale: 2.5,
-                            filter: 'blur(16px)',
-                            transition: { duration: 0.25 },
-                          }}
-                          transition={{
-                            type: 'spring',
-                            damping: 13,
-                            stiffness: 340,
-                            mass: 0.7,
-                            delay: wIdx * 0.04,
-                          }}
-                          className="inline-block font-black tracking-tight"
-                          style={{
-                            ...fontStyle,
-                            fontSize: `${options.fontSize * 1.15}px`,
-                          }}
-                        >
-                          {word.text}
-                        </motion.span>
-                      );
-                    })}
-                  </div>
-                )}
+            {/* Right: Git Branch / Status */}
+            <div
+              className="text-[10px] font-mono opacity-60 flex items-center justify-end space-x-1 w-16"
+              style={{ color: theme.titleBarText }}
+            >
+              <span>main*</span>
+            </div>
+          </div>
 
-                {/* 🌟 PRESET 2: CROSS-DRIFT COLLISION (Đan chéo đối kháng 2 bên lao vào nhau xé gió) */}
-                {options.motionPreset === 'cross-drift' && (
-                  <div className="flex flex-wrap justify-center items-center gap-x-3 gap-y-2 max-w-[95%]">
-                    {analyzedWords.map((word, wIdx) => {
-                      const isLeft = wIdx % 2 === 0;
-                      return (
-                        <motion.span
-                          key={word.id}
-                          initial={{
-                            opacity: 0,
-                            x: isLeft ? -220 : 220,
-                            scaleX: 1.8,
-                            filter: 'blur(10px)',
-                          }}
-                          animate={{
-                            opacity: 1,
-                            x: 0,
-                            scaleX: 1,
-                            filter: 'blur(0px)',
-                          }}
-                          exit={{
-                            opacity: 0,
-                            x: isLeft ? 150 : -150,
-                            transition: { duration: 0.2 }
-                          }}
-                          transition={{
-                            type: 'spring',
-                            damping: 15,
-                            stiffness: 360,
-                            delay: wIdx * 0.05,
-                          }}
-                          className="inline-block font-extrabold tracking-tight"
-                          style={{
-                            ...fontStyle,
-                            fontSize: `${options.fontSize * 1.15}px`,
-                          }}
-                        >
-                          {word.text}
-                        </motion.span>
-                      );
-                    })}
-                  </div>
-                )}
+          {/* 2. BREADCRUMB BAR */}
+          {options.showBreadcrumb && (
+            <div
+              className="flex items-center space-x-1.5 px-4 py-1 text-[10px] font-mono border-b opacity-50 shrink-0"
+              style={{
+                borderColor: theme.titleBarBorder,
+                color: theme.titleBarText,
+                backgroundColor: theme.bg,
+              }}
+            >
+              <span>sfumato</span>
+              <span>&gt;</span>
+              <span>tracks</span>
+              <span>&gt;</span>
+              <span className="font-semibold text-white/80">{options.fileName || 'lyrics.ts'}</span>
+            </div>
+          )}
 
-                {/* 🌟 PRESET 3: 3D SPATIAL CARD FLIP (Xòe bài 3D trong không gian -> Khóa cạch vào vị trí) */}
-                {options.motionPreset === 'card-flip-3d' && (
-                  <div 
-                    className="flex flex-wrap justify-center items-center gap-x-3 gap-y-2 max-w-[95%]"
-                    style={{ perspective: '1200px' }}
-                  >
-                    {analyzedWords.map((word, wIdx) => (
-                      <motion.span
-                        key={word.id}
-                        initial={{
-                          opacity: 0,
-                          rotateX: 85,
-                          rotateY: (wIdx % 2 === 0 ? -1 : 1) * 45,
-                          z: 180,
-                          scale: 0.6,
-                        }}
-                        animate={{
-                          opacity: 1,
-                          rotateX: 0,
-                          rotateY: 0,
-                          z: 0,
-                          scale: 1,
-                        }}
-                        exit={{
-                          opacity: 0,
-                          rotateX: -80,
-                          transition: { duration: 0.25 }
-                        }}
-                        transition={{
-                          type: 'spring',
-                          damping: 14,
-                          stiffness: 280,
-                          delay: wIdx * 0.06,
-                        }}
-                        className="inline-block font-black"
-                        style={{
-                          ...fontStyle,
-                          fontSize: `${options.fontSize * 1.15}px`,
-                          transformStyle: 'preserve-3d',
-                        }}
-                      >
-                        {word.text}
-                      </motion.span>
-                    ))}
-                  </div>
-                )}
+          {/* 3. CODE EDITOR BODY (Lines + Gutter + Content) */}
+          <div className="relative flex-1 overflow-hidden p-3 pt-4">
+            {/* Khung trượt mượt mà theo vị trí active line */}
+            <div
+              className="transition-transform duration-500 ease-out flex flex-col"
+              style={{
+                transform: `translateY(-${scrollOffset}px)`,
+              }}
+            >
+              {sortedLyrics.length === 0 ? (
+                <div
+                  className="flex flex-col items-center justify-center py-20 text-xs font-mono opacity-40 text-center"
+                  style={{ color: theme.gutterText }}
+                >
+                  <p>// [00:00.0] Chờ âm thanh & Lời bài hát...</p>
+                  <p>// Gõ lời bài hát bên trái để bắt đầu</p>
+                </div>
+              ) : (
+                sortedLyrics.map((line, idx) => {
+                  const isActive = idx === activeIndex;
+                  const isPast = activeIndex > -1 && idx < activeIndex;
+                  const lineNum = (idx + 1).toString().padStart(2, '0');
+                  const timeFormatted = `[${formatTime(line.startTime)}]`;
 
-                {/* 🌟 PRESET 4: ECHO GHOST STROBE (Bóng ma phân thân 4 hướng -> Thu hồi chớp nhoáng) */}
-                {options.motionPreset === 'echo-ghost' && (
-                  <div className="relative flex flex-wrap justify-center items-center gap-x-3 gap-y-2 max-w-[95%]">
-                    {analyzedWords.map((word, wIdx) => (
-                      <motion.span
-                        key={word.id}
-                        initial={{ opacity: 0, scale: 0.4 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 1.4, transition: { duration: 0.2 } }}
-                        transition={{ duration: 0.35, delay: wIdx * 0.05 }}
-                        className="relative inline-block font-black"
-                        style={{
-                          ...fontStyle,
-                          fontSize: `${options.fontSize * 1.2}px`,
-                        }}
-                      >
-                        {/* 4 Echo ghost trails */}
-                        <motion.span
-                          initial={{ x: -16, y: -12, opacity: 0.6 }}
-                          animate={{ x: 0, y: 0, opacity: 0 }}
-                          transition={{ duration: 0.5, delay: wIdx * 0.05 + 0.1 }}
-                          className="absolute inset-0 text-cyan-400 select-none pointer-events-none mix-blend-screen"
-                        >
-                          {word.text}
-                        </motion.span>
-                        <motion.span
-                          initial={{ x: 16, y: 12, opacity: 0.6 }}
-                          animate={{ x: 0, y: 0, opacity: 0 }}
-                          transition={{ duration: 0.5, delay: wIdx * 0.05 + 0.1 }}
-                          className="absolute inset-0 text-red-500 select-none pointer-events-none mix-blend-screen"
-                        >
-                          {word.text}
-                        </motion.span>
-                        <span className="relative z-10">{word.text}</span>
-                      </motion.span>
-                    ))}
-                  </div>
-                )}
+                  // Xử lý text hiển thị (typewriter cho active line)
+                  let displayText = line.text;
+                  if (isActive && options.typewriterEffect) {
+                    displayText = line.text.substring(0, typedLength);
+                  }
 
-                {/* 🌟 PRESET 5: BRUTALIST GIANT ASYMMETRY (Bố cục bất đối xứng cực hạn - Swiss Style) */}
-                {options.motionPreset === 'brutalist-giant' && (
-                  <div className="flex flex-col items-center justify-center max-w-[95%] space-y-2">
-                    {/* Hero Giant Word */}
-                    {analyzedWords.filter(w => w.isHero).map((hero) => (
-                      <motion.div
-                        key={hero.id}
-                        initial={{ scale: 0.5, y: 30, opacity: 0, rotate: -4 }}
-                        animate={{ scale: 1, y: 0, opacity: 1, rotate: -2 }}
-                        exit={{ scale: 1.2, opacity: 0, transition: { duration: 0.2 } }}
-                        transition={{ type: 'spring', damping: 13, stiffness: 320 }}
-                        className="font-black uppercase tracking-tighter text-white drop-shadow-[0_0_25px_rgba(255,255,255,0.45)] leading-none"
-                        style={{
-                          ...fontStyle,
-                          fontSize: `${options.fontSize * 2.0}px`,
-                        }}
-                      >
-                        {hero.text}
-                      </motion.div>
-                    ))}
+                  // Cú pháp code theo từng ngôn ngữ
+                  let prefix = '';
+                  let suffix = '';
+                  if (options.language === 'typescript') {
+                    prefix = 'yield "';
+                    suffix = '";';
+                  } else if (options.language === 'python') {
+                    prefix = 'print("';
+                    suffix = '")';
+                  } else if (options.language === 'bash') {
+                    prefix = '$ echo "';
+                    suffix = '"';
+                  } else {
+                    prefix = '"';
+                    suffix = '"';
+                  }
 
-                    {/* Secondary Words Row */}
-                    <motion.div
-                      initial={{ opacity: 0, y: 15 }}
-                      animate={{ opacity: 0.85, y: 0 }}
-                      transition={{ duration: 0.4, delay: 0.15 }}
-                      className="flex flex-wrap justify-center gap-x-2 text-zinc-300 font-semibold uppercase tracking-wider"
+                  return (
+                    <div
+                      key={line.id}
+                      className={`relative flex items-start transition-all duration-300 rounded-lg px-2 my-0.5 ${
+                        isActive ? 'shadow-sm' : ''
+                      }`}
                       style={{
-                        ...fontStyle,
-                        fontSize: `${options.fontSize * 0.85}px`,
+                        backgroundColor: isActive ? theme.activeLineBg : 'transparent',
+                        borderLeft: isActive ? `3px solid ${theme.activeLineBorder}` : '3px solid transparent',
+                        lineHeight: `${lineHeightPx}px`,
                       }}
                     >
-                      {analyzedWords.filter(w => !w.isHero).map(w => (
-                        <span key={w.id}>{w.text}</span>
-                      ))}
-                    </motion.div>
-                  </div>
-                )}
-
-                {/* 🌟 PRESET 6: ELASTIC SPRING (Co giãn dây cao su đàn hồi & nhịp thở vật lý) */}
-                {options.motionPreset === 'elastic-spring' && (
-                  <motion.div
-                    initial={{ scaleY: 2.3, scaleX: 0.5, opacity: 0, y: 40 }}
-                    animate={{
-                      scaleY: 1,
-                      scaleX: 1,
-                      opacity: 1,
-                      y: 0,
-                      transition: {
-                        type: 'spring',
-                        damping: 10,
-                        stiffness: 280,
-                        mass: 0.9,
-                      }
-                    }}
-                    exit={{ scaleY: 0.4, scaleX: 1.8, opacity: 0, transition: { duration: 0.2 } }}
-                    className="max-w-[85%] font-black leading-tight select-none whitespace-pre-line"
-                    style={{
-                      ...fontStyle,
-                      fontSize: `${options.fontSize * 1.2}px`,
-                    }}
-                  >
-                    {currentLine.text}
-                  </motion.div>
-                )}
-
-                {/* PRESET 7: HYPER-VELOCITY RUSH */}
-                {options.motionPreset === 'hyper-velocity' && (
-                  <motion.div
-                    initial={{ scale: 3.4, opacity: 0, filter: 'blur(16px)', y: -20 }}
-                    animate={{
-                      scale: 1,
-                      opacity: 1,
-                      filter: 'blur(0px)',
-                      y: 0,
-                      transition: {
-                        type: 'spring',
-                        damping: 14,
-                        stiffness: 320,
-                        mass: 0.8,
-                      }
-                    }}
-                    exit={{ scale: 0.8, opacity: 0, filter: 'blur(10px)', transition: { duration: 0.2 } }}
-                    className="max-w-[85%] font-black leading-tight drop-shadow-[0_0_20px_rgba(255,255,255,0.4)] whitespace-pre-line"
-                    style={{
-                      ...fontStyle,
-                      fontSize: `${options.fontSize * 1.2}px`,
-                    }}
-                  >
-                    <div className="relative">
-                      {options.chromaticAberration && (
-                        <>
-                          <span className="absolute -left-1 top-0 text-red-500 opacity-60 mix-blend-screen select-none pointer-events-none">
-                            {currentLine.text}
-                          </span>
-                          <span className="absolute -right-1 top-0 text-cyan-400 opacity-60 mix-blend-screen select-none pointer-events-none">
-                            {currentLine.text}
-                          </span>
-                        </>
+                      {/* Cột 1: Số thứ tự dòng */}
+                      {options.showLineNumbers && (
+                        <span
+                          className="w-7 shrink-0 text-right pr-2 text-[11px] font-mono select-none"
+                          style={{
+                            color: isActive ? theme.gutterActiveText : theme.gutterText,
+                            fontWeight: isActive ? 700 : 400,
+                          }}
+                        >
+                          {lineNum}
+                        </span>
                       )}
-                      <span className="relative z-10">{currentLine.text}</span>
+
+                      {/* Cột 2: Timestamp thời gian */}
+                      {options.showTimestamps && (
+                        <span
+                          className="shrink-0 pr-2.5 text-[10px] font-mono select-none"
+                          style={{
+                            color: isActive ? theme.activeTimestampColor : theme.timestampColor,
+                            opacity: isActive ? 1 : 0.45,
+                            fontWeight: isActive ? 600 : 400,
+                          }}
+                        >
+                          {timeFormatted}
+                        </span>
+                      )}
+
+                      {/* Cột 3: Nội dung Code / Lyrics */}
+                      <div
+                        className="flex-1 break-words font-mono transition-opacity duration-300"
+                        style={{
+                          fontSize: `${options.fontSize}px`,
+                          opacity: isActive ? 1 : isPast ? 0.35 : 0.25,
+                        }}
+                      >
+                        {/* Keyword prefix */}
+                        <span
+                          className="font-semibold select-none"
+                          style={{ color: theme.keywordColor }}
+                        >
+                          {prefix}
+                        </span>
+
+                        {/* Text string lyrics */}
+                        <span
+                          style={{
+                            color: isActive ? theme.stringColor : theme.inactiveStringColor,
+                            fontWeight: isActive ? 600 : 400,
+                            textShadow: isActive ? `0 0 16px ${theme.glowColor}` : 'none',
+                          }}
+                        >
+                          {displayText}
+                        </span>
+
+                        {/* Blinking Cursor khi là dòng active */}
+                        {isActive && (
+                          <span
+                            className="inline-block ml-0.5 font-bold"
+                            style={{
+                              color: theme.cursorColor,
+                              opacity: cursorVisible ? 1 : 0,
+                              textShadow: `0 0 8px ${theme.cursorColor}`,
+                            }}
+                          >
+                            {cursorChar}
+                          </span>
+                        )}
+
+                        {/* Suffix */}
+                        <span
+                          className="font-semibold select-none"
+                          style={{ color: theme.punctuationColor }}
+                        >
+                          {suffix}
+                        </span>
+                      </div>
                     </div>
-                  </motion.div>
-                )}
+                  );
+                })
+              )}
+            </div>
+          </div>
 
-                {/* PRESET 8: LIQUID CHROME (Tráng gương kim loại bạc 3D) */}
-                {options.motionPreset === 'liquid-chrome' && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 30, scale: 0.85, rotateX: 30 }}
-                    animate={{
-                      opacity: 1,
-                      y: 0,
-                      scale: 1,
-                      rotateX: 0,
-                      transition: { duration: 0.7, ease: [0.16, 1, 0.3, 1] }
-                    }}
-                    exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.3 } }}
-                    className="max-w-[85%] font-extrabold animate-float leading-tight select-none whitespace-pre-line"
-                    style={{
-                      ...fontStyle,
-                      fontSize: `${options.fontSize * 1.15}px`,
-                    }}
-                  >
-                    <span className="inline-block text-chrome-shine drop-shadow-[0_4px_16px_rgba(255,255,255,0.35)]">
-                      {currentLine.text}
-                    </span>
-                  </motion.div>
-                )}
-
-                {/* PRESET 9: VINTAGE 16MM FILM BURN */}
-                {options.motionPreset === 'film-burn' && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 1.04, filter: 'blur(6px)' }}
-                    animate={{
-                      opacity: 1,
-                      scale: 1,
-                      filter: 'blur(0px)',
-                      transition: { duration: 0.45, ease: 'easeOut' }
-                    }}
-                    exit={{ opacity: 0, filter: 'blur(8px)', transition: { duration: 0.25 } }}
-                    className="max-w-[85%] leading-relaxed tracking-wider select-none whitespace-pre-line"
-                    style={{
-                      ...fontStyle,
-                      fontSize: `${options.fontSize}px`,
-                      color: '#fef3c7',
-                      textShadow: '0 0 16px rgba(251, 146, 60, 0.5)',
-                    }}
-                  >
-                    <div>{currentLine.text}</div>
-                  </motion.div>
-                )}
-
-                {/* PRESET 10: LIQUID SMOKE (Khói mờ Sfumato) */}
-                {options.motionPreset === 'liquid-smoke' && (
-                  <motion.div
-                    initial={{ opacity: 0, filter: 'blur(28px)', scale: 0.92, letterSpacing: '0.22em' }}
-                    animate={{
-                      opacity: 1,
-                      filter: 'blur(0px)',
-                      scale: 1,
-                      letterSpacing: `${options.letterSpacing}em`,
-                      transition: { duration: 0.95, ease: [0.16, 1, 0.3, 1] }
-                    }}
-                    exit={{ opacity: 0, filter: 'blur(20px)', scale: 1.05 }}
-                    className="max-w-[85%] leading-relaxed select-none animate-pulse-subtle whitespace-pre-line"
-                    style={{ ...fontStyle, fontSize: `${options.fontSize}px` }}
-                  >
-                    {currentLine.text}
-                  </motion.div>
-                )}
-              </motion.div>
-            ) : (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 0.35 }}
-                exit={{ opacity: 0 }}
-                className="text-zinc-600 text-xs font-mono tracking-widest uppercase flex flex-col items-center gap-2"
+          {/* 4. IDE STATUS BAR ĐÁY */}
+          <div
+            className="flex items-center justify-between px-3 py-1 border-t text-[10px] font-mono select-none shrink-0"
+            style={{
+              backgroundColor: theme.titleBarBg,
+              borderColor: theme.titleBarBorder,
+              color: theme.titleBarText,
+            }}
+          >
+            <div className="flex items-center space-x-2">
+              <span
+                className="px-1.5 py-0.2 rounded text-[9px] font-semibold text-white"
+                style={{ backgroundColor: theme.badgeBg }}
               >
-                <div className="w-2 h-2 rounded-full bg-zinc-600 animate-ping" />
-                <span>[ Chờ âm thanh & Lời bài hát ]</span>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                TERMINAL
+              </span>
+              <span className="opacity-75">
+                Ln {activeIndex >= 0 ? activeIndex + 1 : 1}, Col {typedLength + 1}
+              </span>
+            </div>
+
+            <div className="flex items-center space-x-3 opacity-75">
+              <span>UTF-8</span>
+              <span className="uppercase">{options.language}</span>
+            </div>
+          </div>
+
+          {/* CRT Scanline Effect Overlay (Tùy chọn phong cách cổ điển) */}
+          {options.crtScanlines && (
+            <div className="absolute inset-0 pointer-events-none bg-scanlines opacity-20 z-20" />
+          )}
         </div>
       </div>
     </div>
-  </div>
-);
+  );
 };

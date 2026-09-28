@@ -7,7 +7,7 @@ import { WaveformTimeline } from './components/WaveformTimeline';
 import { ExportModal } from './components/ExportModal';
 import { FullscreenPreview } from './components/FullscreenPreview';
 import { Maximize2 } from 'lucide-react';
-import { LyricLine, StylingOptions, AspectRatio, MotionPreset } from './types';
+import { LyricLine, StylingOptions, AspectRatio } from './types';
 import { parseLyricsText } from './utils/formatters';
 
 const DEFAULT_SAMPLE_LYRICS = `Đêm buông xuống thành phố không còn ai
@@ -18,28 +18,23 @@ Giữ trọn từng nét chữ của riêng mình
 Sfumato - chuyển động của tâm linh.`;
 
 export function App() {
-  // Styling state (WOW Disruptive Defaults)
+  // Styling state (IDE Code Editor & Terminal Defaults)
   const [styling, setStyling] = useState<StylingOptions>({
-    fontFamily: 'Unbounded',
-    fontSize: 26,
-    fontWeight: 900,
-    letterSpacing: 0.02,
-    textColor: '#FFFFFF',
-    glowEffect: true,
-    glowIntensity: 0.45,
-    lineHeight: 1.35,
-    alignment: 'center',
-    motionPreset: 'shatter-assemble',
+    theme: 'vscode-dark',
+    language: 'typescript',
+    fontFamily: 'JetBrains Mono',
+    fontSize: 15,
+    lineHeight: 1.6,
     aspectRatio: '9:16',
-    showSafeZone: true,
-    enableFilmGrain: false,
-    filmBurnEffect: false,
-    chromeReflect: true,
-    cameraShake: false,
+    showLineNumbers: true,
+    showTimestamps: true,
+    showMacDots: true,
+    showBreadcrumb: true,
+    typewriterEffect: true,
+    cursorStyle: 'block',
     crtScanlines: false,
-    heroWordAccent: 'scale',
-    chromaticAberration: false,
-    textCase: 'none',
+    fileName: 'lyrics.ts',
+    showSafeZone: false,
   });
 
   // Audio & Playback state
@@ -294,8 +289,8 @@ export function App() {
       <Header
         aspectRatio={styling.aspectRatio}
         onAspectRatioChange={(ratio) => setStyling((prev) => ({ ...prev, aspectRatio: ratio }))}
-        motionPreset={styling.motionPreset}
-        onPresetChange={(preset) => setStyling((prev) => ({ ...prev, motionPreset: preset }))}
+        theme={styling.theme}
+        onThemeChange={(th) => setStyling((prev) => ({ ...prev, theme: th }))}
         showSafeZone={styling.showSafeZone}
         onToggleSafeZone={() => setStyling((prev) => ({ ...prev, showSafeZone: !prev.showSafeZone }))}
         onOpenExport={() => setIsExportOpen(true)}

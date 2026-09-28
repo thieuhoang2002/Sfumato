@@ -164,7 +164,7 @@ export const ExportModal: React.FC<Props> = ({
       }
 
       // 2. Vẽ frame chuẩn xác 100% bằng engine thống nhất renderKineticFrame
-      renderKineticFrame(ctx, width, height, current, currentTime, options, false);
+      renderKineticFrame(ctx, width, height, sorted, currentTime, options, false);
 
       // 4. Kiểm tra điều kiện kết thúc chính xác đúng 100% thời lượng bài hát
       const hasEnded = audioElement && includeAudio 

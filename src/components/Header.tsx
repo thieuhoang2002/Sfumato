@@ -1,12 +1,12 @@
 import React from 'react';
-import { Sparkles, Download, Layers, ShieldCheck, HelpCircle } from 'lucide-react';
-import { AspectRatio, MotionPreset } from '../types';
+import { Download, ShieldCheck, Terminal } from 'lucide-react';
+import { AspectRatio, EditorTheme } from '../types';
 
 interface Props {
   aspectRatio: AspectRatio;
   onAspectRatioChange: (ratio: AspectRatio) => void;
-  motionPreset: MotionPreset;
-  onPresetChange: (preset: MotionPreset) => void;
+  theme: EditorTheme;
+  onThemeChange: (theme: EditorTheme) => void;
   showSafeZone: boolean;
   onToggleSafeZone: () => void;
   onOpenExport: () => void;
@@ -15,8 +15,8 @@ interface Props {
 export const Header: React.FC<Props> = ({
   aspectRatio,
   onAspectRatioChange,
-  motionPreset,
-  onPresetChange,
+  theme,
+  onThemeChange,
   showSafeZone,
   onToggleSafeZone,
   onOpenExport,
@@ -26,17 +26,19 @@ export const Header: React.FC<Props> = ({
       {/* Brand */}
       <div className="flex items-center space-x-3">
         <div className="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-700/60 flex items-center justify-center font-bold text-white shadow-inner">
-          <span className="text-base font-serif italic text-zinc-100">S</span>
+          <Terminal size={17} className="text-emerald-400" />
         </div>
         <div>
           <div className="flex items-center space-x-2">
-            <h1 className="text-base font-semibold tracking-wide text-zinc-100">Sfumato</h1>
+            <h1 className="text-base font-semibold tracking-wide text-zinc-100 font-mono">
+              Sfumato <span className="text-emerald-400">Code</span>
+            </h1>
             <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700/50">
-              MVP 0.1
+              CLI IDE 1.0
             </span>
           </div>
-          <p className="text-[11px] text-zinc-500 hidden sm:block">
-            Kinetic Lyrics • Nền đen tuyệt đối #000000 cho CapCut
+          <p className="text-[11px] text-zinc-500 hidden sm:block font-mono">
+            Terminal & IDE Code Lyrics Video Generator • TikTok 9:16
           </p>
         </div>
       </div>
@@ -60,22 +62,18 @@ export const Header: React.FC<Props> = ({
           ))}
         </div>
 
-        {/* Motion Preset Selector */}
+        {/* IDE Theme Selector */}
         <select
-          value={motionPreset}
-          onChange={(e) => onPresetChange(e.target.value as MotionPreset)}
-          className="bg-zinc-900 border border-zinc-800 text-xs text-zinc-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-emerald-500 font-sans font-medium"
+          value={theme}
+          onChange={(e) => onThemeChange(e.target.value as EditorTheme)}
+          className="bg-zinc-900 border border-zinc-800 text-xs text-zinc-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-emerald-500 font-mono font-medium"
         >
-          <option value="shatter-assemble">🌪️ Shatter & Assemble (Tách rời & Hợp nhất)</option>
-          <option value="cross-drift">🧬 Cross-Drift Collision (Đan chéo xé gió)</option>
-          <option value="card-flip-3d">🌀 3D Spatial Flip (Xòe bài 3D & Snap)</option>
-          <option value="echo-ghost">💥 Echo Ghost Strobe (Bóng ma phân thân)</option>
-          <option value="brutalist-giant">📐 Brutalist Giant (Bất đối xứng cực hạn)</option>
-          <option value="elastic-spring">🌊 Elastic Spring (Cao su kéo giãn)</option>
-          <option value="hyper-velocity">⚡ Hyper-Velocity Rush (Tốc độ bùng nổ)</option>
-          <option value="liquid-chrome">💎 Liquid Chrome 3D (Tráng gương kim loại)</option>
-          <option value="film-burn">🎬 Vintage 16mm Film Burn (Cháy phim cam ấm)</option>
-          <option value="liquid-smoke">🖤 Sfumato Liquid Smoke (Khói loang)</option>
+          <option value="vscode-dark">💻 VS Code Dark+</option>
+          <option value="tokyo-night">🌃 Tokyo Night</option>
+          <option value="dracula">🧛 Dracula Pro</option>
+          <option value="matrix">⚡ Matrix Hacker</option>
+          <option value="monokai">🎨 Monokai Pro</option>
+          <option value="cyberpunk">🔥 Cyberpunk Amber</option>
         </select>
 
         {/* Safe Zone Toggle */}
@@ -97,10 +95,10 @@ export const Header: React.FC<Props> = ({
       <div className="flex items-center space-x-2">
         <button
           onClick={onOpenExport}
-          className="px-4 py-2 rounded-lg bg-white text-black font-semibold text-xs hover:bg-zinc-200 transition-all flex items-center space-x-2 shadow-lg shadow-white/5 active:scale-95"
+          className="px-4 py-2 rounded-lg bg-emerald-500 text-black font-semibold text-xs hover:bg-emerald-400 transition-all flex items-center space-x-2 shadow-lg shadow-emerald-500/10 active:scale-95 font-mono"
         >
           <Download size={14} />
-          <span>Xuất Video (CapCut Ready)</span>
+          <span>Xuất Video (1080p)</span>
         </button>
       </div>
     </header>
