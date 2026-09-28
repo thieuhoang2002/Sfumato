@@ -1,6 +1,6 @@
 # TECHNICAL STANDARDS (TECHSTACK.md) — SFUMATO
 > **Quy chuẩn Kiến trúc Kỹ thuật & Chuẩn Mã Nguồn**  
-> *Phiên bản: 1.0.0 | Ngôn ngữ chính: TypeScript / React 19 / Vite*
+> *Phiên bản: 2.0.0 | Ngôn ngữ chính: TypeScript / React 19 / Vite*
 
 ---
 
@@ -8,85 +8,68 @@
 
 | Hạng mục | Công nghệ | Phiên bản | Lý do lựa chọn |
 | :--- | :--- | :--- | :--- |
-| **Core Framework** | React | `19.0.0` | Thư viện giao diện chuẩn công nghiệp, hiệu năng Virtual DOM xuất sắc, hệ sinh thái đồ sộ. |
-| **Language** | TypeScript | `~5.7.2` | Định kiểu tĩnh nghiêm ngặt, triệt tiêu lỗi runtime, tự động gợi ý kiểu dữ liệu cho animation variants. |
-| **Build Tool** | Vite | `^6.1.0` | Thời gian khởi động dev server siêu tốc (<1s), Hot Module Replacement (HMR) tức thì. |
-| **Motion Physics Engine**| Framer Motion | `^12.4.7` | Thư viện kinetic animation số 1 thế giới, hỗ trợ Spring physics, Stagger children, 3D transforms, AnimatePresence. |
-| **Styling & Design System**| TailwindCSS | `^3.4.17` | Utility-first CSS, biên dịch CSS siêu nhẹ, linh hoạt tùy biến màu `#000000` và responsive layout. |
-| **Iconography** | Lucide React | `^0.475.0` | Bộ icon SVG tối giản, sắc nét, đồng bộ phong cách tối giản hiện đại. |
-| **Audio Processing** | Web Audio API | Trình duyệt gốc | Độ trễ mili-giây cực thấp, hỗ trợ giải mã waveform và tạo MediaStreamDestination để muxing audio. |
-| **Video Recording Engine**| HTML5 Canvas + MediaRecorder API | Trình duyệt gốc | Render offline/realtime 60fps mượt mà, xuất video WebM/VP9 không cần cài đặt phần mềm bên ngoài. |
+| **Core Framework** | React | `19.0.0` | Thư viện UI chuẩn mực, hiệu năng render xuất sắc, quản lý state và DOM đồng bộ. |
+| **Language** | TypeScript | `~5.7.2` | Định kiểu nghiêm ngặt, triệt tiêu lỗi runtime, tự động gợi ý props và code layout types. |
+| **Build Tool** | Vite | `^6.1.0` | Khởi động server phát triển tức thì (<1s), Hot Module Replacement (HMR) cực nhanh. |
+| **Styling** | TailwindCSS | `^3.4.17` | Utility-first CSS, thiết kế giao diện Dark Mode chuẩn mực cho IDE Editor và Terminal. |
+| **Iconography** | Lucide React | `^0.475.0` | Bộ icon SVG tối giản, sắc nét, đồng bộ cho terminal controls và timeline. |
+| **Canvas 2D Engine** | HTML5 Canvas API | Trình duyệt gốc | Render 1080p 60fps đồng bộ WYSIWYG giữa màn hình preview và file video xuất. |
+| **Video Recording** | MediaRecorder API | Trình duyệt gốc | Hỗ trợ chuẩn xuất video **MP4 (H.264/AVC)** và **WebM (VP9)** mượt mà. |
+| **Metadata Patching** | fix-webm-duration | `^1.0.6` | Vá siêu dữ liệu thời lượng (Duration EBML) chuẩn xác cho file WebM. |
+| **Storage Persistence** | LocalStorage API | Trình duyệt gốc | Tự động lưu tiến trình lyrics và cấu hình theme, chống mất dữ liệu khi F5. |
 
 ---
 
 ## 2. Cấu Trúc Dữ Liệu & Kiểu TypeScript (Data Schema)
 
-Toàn bộ dữ liệu của một bài hát và trạng thái visual được quản lý chặt chẽ trong `src/types/index.ts`:
+Toàn bộ dữ liệu được quản lý trong `src/types/index.ts` và `src/utils/codeLayout.ts`:
 
 ```typescript
 // 1. Tỉ lệ khung hình
 export type AspectRatio = '9:16' | '1:1' | '16:9';
 
-// 2. Danh mục 10 Phong cách Kinetic Bứt Phá
-export type MotionPreset = 
-  | 'shatter-assemble'   // Phân rã tản mác 4 phương -> Hút xoáy hợp nhất
-  | 'cross-drift'        // Đan chéo đối kháng 2 bên lao vào nhau xé gió
-  | 'card-flip-3d'       // Xòe bài 3D trong không gian -> Khóa snap
-  | 'echo-ghost'         // Bóng ma phân thân 4 hướng -> Thu hồi chớp nhoáng
-  | 'brutalist-giant'    // Bất đối xứng cực hạn: Từ chính khổng lồ
-  | 'elastic-spring'     // Co giãn dây cao su đàn hồi & nhịp thở vật lý
-  | 'hyper-velocity'     // Lao vút từ vô tận, zoom bùng nổ, phanh gấp
-  | 'liquid-chrome'      // Tráng gương kim loại ánh bạc lấp lánh 3D
-  | 'film-burn'          // Vintage 16mm: Vệt cháy phim cam ấm áp
-  | 'liquid-smoke';      // Khói mờ Sfumato loang nở như giọt mực
+// 2. Ngôn ngữ cú pháp Code Editor
+export type CodeLanguage = 'typescript' | 'python' | 'bash' | 'plain';
 
-// 3. Danh mục 10 Font chữ Display chuẩn 100% Tiếng Việt
-export type FontChoice = 
-  | 'Unbounded'          // Futuristic Neo-Grotesk cực dày mở rộng
-  | 'Cinzel'             // La Mã quý tộc, sắc lẹm 900
-  | 'Montserrat'         // Black 900 Italic thể thao tốc độ
-  | 'Archivo Black'      // Nặng ký, đanh thép
-  | 'Prata'              // Haute Couture Paris tương phản cao
-  | 'Epilogue'           // Brutalist Display vát góc cá tính
-  | 'Sedgwick Ave'       // Graffiti / Nét cọ đường phố
-  | 'Philosopher'        // Serif huyền ảo uốn lượn
-  | 'Playfair Display'   // Serif quý phái lãng mạn điện ảnh
-  | 'Be Vietnam Pro';    // Chuẩn mực đương đại quốc tế
+// 3. Kiểu con trỏ Terminal
+export type CursorStyle = 'block' | 'line' | 'underscore';
 
-// 4. Mô hình dữ liệu từng dòng Lyrics
+// 4. Danh mục 6 Theme IDE Lập trình viên
+export type ThemeId = 
+  | 'vscode-dark'    // VS Code Dark+
+  | 'tokyo-night'    // Tokyo Night Cyberpunk
+  | 'dracula'        // Dracula Pro
+  | 'matrix'         // Matrix Hacker Green
+  | 'monokai'        // Monokai Pro
+  | 'cyberpunk';     // Cyberpunk Amber 80s
+
+// 5. Cấu hình thẩm mỹ IDE Editor (StylingOptions)
+export interface StylingOptions {
+  theme: ThemeId;
+  aspectRatio: AspectRatio;
+  language: CodeLanguage;
+  fontSize: number;
+  fontFamily: string;
+  lineHeight: number;
+  showLineNumbers: boolean;
+  showTimestamps: boolean;
+  showMacDots: boolean;
+  showBreadcrumb: boolean;
+  typewriterEffect: boolean;
+  cursorStyle: CursorStyle;
+  crtScanlines: boolean;
+  fileName: string;
+  showSafeZone: boolean;
+}
+
+// 6. Mô hình dữ liệu từng dòng Lyrics
 export interface LyricLine {
   id: string;            // Định danh duy nhất: `line-${timestamp}-${random}`
   text: string;          // Nội dung câu tiếng Việt có dấu
-  startTime: number;     // Mốc bắt đầu (tính bằng giây, độ chính xác 0.01s)
-  endTime: number;       // Mốc kết thúc (tự động kéo dài tới startTime câu kế)
-  words?: LyricWord[];   // Danh sách các từ tách riêng (phục vụ kinetic)
-  synced: boolean;       // Trạng thái đã đặt nhịp hay chưa
-}
-
-// 5. Cấu hình thẩm mỹ toàn cục (Global Styling State)
-export interface StylingOptions {
-  fontFamily: FontChoice;
-  fontSize: number;
-  fontWeight: number;
-  letterSpacing: number;
-  textColor: string;
-  glowEffect: boolean;
-  glowIntensity: number;
-  lineHeight: number;
-  alignment: 'center' | 'left' | 'right';
-  motionPreset: MotionPreset;
-  aspectRatio: AspectRatio;
-  showSafeZone: boolean;
-  
-  // Hiệu ứng điện ảnh
-  enableFilmGrain: boolean;
-  filmBurnEffect: boolean;
-  chromeReflect: boolean;
-  cameraShake: boolean;
-  crtScanlines: boolean;
-  heroWordAccent: 'scale' | 'outline' | 'badge' | 'none';
-  chromaticAberration: boolean;
-  textCase: 'none' | 'uppercase' | 'lowercase';
+  startTime: number;     // Mốc bắt đầu (giây, độ chính xác 0.01s)
+  endTime: number;       // Mốc kết thúc (tự động nối tiếp câu kế)
+  words?: LyricWord[];   // Danh sách từ
+  synced: boolean;       // Trạng thái đã đặt nhịp
 }
 ```
 
@@ -96,53 +79,49 @@ export interface StylingOptions {
 
 ```
 Sfumato/
-├── index.html                   # HTML template nạp toàn bộ Google Fonts Vietnamese Subsets
+├── index.html                   # HTML template nạp Monospace Fonts (JetBrains Mono, Fira Code)
 ├── package.json                 # Định nghĩa dependencies và npm scripts
 ├── tsconfig.json                # Cấu hình TypeScript compiler
 ├── vite.config.ts               # Cấu hình bundler Vite & plugin React
-├── tailwind.config.js           # Cấu hình bảng màu (#000000, canvas) và phông chữ
-├── postcss.config.js            # PostCSS pipeline (Tailwind & Autoprefixer)
+├── tailwind.config.js           # Cấu hình TailwindCSS
+├── postcss.config.js            # PostCSS pipeline
 │
 ├── src/
 │   ├── main.tsx                 # Điểm khởi đầu ứng dụng React
-│   ├── App.tsx                  # Controller trung tâm kết nối toàn bộ 3-column layout
-│   ├── index.css                # CSS toàn cục, custom scrollbars, keyframe animations
+│   ├── App.tsx                  # Controller trung tâm kết nối 3 cột, audio & localStorage
+│   ├── index.css                # CSS toàn cục, custom scrollbars
 │   │
 │   ├── types/
 │   │   └── index.ts             # Định nghĩa toàn bộ interfaces & types
 │   │
 │   ├── utils/
-│   │   └── formatters.ts        # Helper format thời gian (00:00.0) và parser lyrics
+│   │   ├── codeLayout.ts        # Thuật toán ngắt dòng thông minh (Safe Sublines) & tokens cú pháp
+│   │   ├── formatters.ts        # Helper format thời gian (00:00.0) và parser lyrics
+│   │   ├── kineticRenderer.ts   # Canvas 2D engine render 1080p 60fps chuẩn IDE
+│   │   └── themePresets.ts      # Bảng màu 6 theme IDE lập trình viên
 │   │
 │   └── components/
-│       ├── Header.tsx           # Thanh điều hướng trên cùng, đổi tỉ lệ, đổi preset, nút xuất
-│       ├── KineticCanvas.tsx    # Khung canvas đen trung tâm, chứa 10 engine chuyển động
+│       ├── Header.tsx           # Thanh điều hướng trên cùng, quick theme switcher, nút xuất
+│       ├── KineticCanvas.tsx    # Khung IDE Window trung tâm hiển thị code lyrics trực tiếp
 │       ├── LyricsEditor.tsx     # Bảng quản lý lời bài hát, inline edit, delete, tap-sync
-│       ├── StyleControls.tsx    # Bảng tinh chỉnh font, preset, hiệu ứng phim ảnh
-│       ├── SafeZoneOverlay.tsx  # Lớp lưới mô phỏng giao diện TikTok/Reels/Shorts
-│       ├── WaveformTimeline.tsx # Thanh tiến trình âm thanh, play/pause, seekbar
-│       └── ExportModal.tsx      # Bộ kết xuất video 60fps kèm/không kèm audio track
+│       ├── StyleControls.tsx    # Bảng tinh chỉnh theme, cú pháp ngôn ngữ, font, con trỏ
+│       ├── SafeZoneOverlay.tsx  # Lưới mô phỏng vùng an toàn TikTok/Reels/Shorts
+│       ├── WaveformTimeline.tsx # Thanh tiến trình âm thanh, đổi/xóa file nhạc, play/pause
+│       ├── ExportModal.tsx      # Bộ xuất video MP4/WebM 60fps có live preview & verification
+│       └── FullscreenPreview.tsx# Chế độ xem trước toàn màn hình
 │
-└── dist/                        # Thư mục sau khi build production (HTML, CSS, JS tĩnh)
+└── dist/                        # Thư mục xuất bản tĩnh production (HTML, CSS, JS)
 ```
 
 ---
 
 ## 4. Quy Chuẩn Viết Code (Coding Conventions)
 
-1. **Quy tắc đặt tên (Naming Conventions)**:
-   - Components: `PascalCase` (ví dụ: `KineticCanvas.tsx`, `LyricsEditor.tsx`).
-   - Hooks & Utilities: `camelCase` (ví dụ: `formatTime`, `parseLyricsText`).
-   - Types & Interfaces: `PascalCase` (ví dụ: `LyricLine`, `StylingOptions`).
-   - Constant Constants: `UPPER_SNAKE_CASE` (ví dụ: `SAMPLE_LYRICS`, `PRESETS`).
-2. **Quy tắc Bố Cục (Layout Architecture)**:
-   - Luôn sử dụng mô hình 3 cột vững chãi: 
-     - Cột trái (`w-80 flex-shrink-0`)
-     - Cột giữa (`flex-1 min-w-0`) — đảm bảo Canvas không bao giờ bị đè bẹp.
-     - Cột phải (`w-80 flex-shrink-0`)
-3. **Quy tắc Animation trong Kinetic Typography**:
-   - Sử dụng Spring physics (`type: 'spring', damping, stiffness`) thay cho easing tuyến tính (`linear`) để tạo độ nảy tự nhiên như vật lý thực.
-   - Khi sử dụng AnimatePresence, luôn đặt `mode="wait"` để câu trước tan biến hoàn toàn trước khi câu sau xuất hiện, tránh xung đột chữ đè lên nhau.
-4. **Quy tắc Quản lý Dấu Tiếng Việt**:
-   - Mọi URL Google Fonts phải đính kèm tham số `&subset=vietnamese`.
-   - Không tự ý thêm font Latin đơn thuần vào hệ thống mà chưa qua kiểm tra hiển thị tiếng Việt.
+1. **Quy tắc Bố cục (Layout Architecture)**:
+   - Mô hình 3 cột: Cột trái (Quản lý lời bài hát), Cột giữa (IDE Window Hero Canvas), Cột phải (Cài đặt Theme & Cú pháp).
+2. **Quy tắc Ngắt dòng Mã nguồn (Code Layout Wrapping)**:
+   - Dòng 1 hiển thị từ khóa cú pháp (`yield "`, `print("`, `$ echo "`).
+   - Dòng thứ 2 trở đi thụt lề 2 dấu cách (`line.indent: '  '`), không cộng dồn prefix để bảo đảm chữ không bao giờ bị cắt khỏi lề phải canvas 9:16.
+3. **Quy tắc Xuất Video (Video Export Engine)**:
+   - Ưu tiên container MP4 (H.264/AVC) để bảo đảm tương thích tối đa với Windows Media Player và CapCut.
+   - Luôn sử dụng đồng hồ thời gian wall-clock kết hợp AudioElement để bảo đảm thời lượng xuất video chính xác $100\%$, không bao giờ kết thúc sớm.

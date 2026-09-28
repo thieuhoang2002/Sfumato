@@ -1,8 +1,22 @@
 {
   "name": "sfumato",
   "private": true,
-  "version": "0.1.0",
-  "description": "Minimalist kinetic typography & sync lyric video studio (9:16, 60fps) for 1-click CapCut Screen blending.",
+  "version": "0.2.0",
+  "description": "Minimalist web studio for generating developer-aesthetic IDE Code Editor & Terminal lyric videos (9:16, 60fps, #000000 background) with syntax highlighting, typewriter animations & timestamps, optimized for 1-click Screen blend in CapCut, Premiere & TikTok. Built with React 19, TypeScript & Canvas 2D.",
+  "keywords": [
+    "terminal-lyrics",
+    "code-editor-lyrics",
+    "developer-aesthetic",
+    "kinetic-typography",
+    "lyric-video-generator",
+    "typewriter-effect",
+    "vscode-theme",
+    "react19",
+    "typescript",
+    "capcut-overlay",
+    "tiktok-video",
+    "mediarecorder"
+  ],
   "license": "MIT",
   "type": "module",
   "scripts": {
