@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { LyricLine, StylingOptions, AspectRatio } from '../types';
 import { THEMES } from '../utils/themePresets';
-import { formatTime } from '../utils/formatters';
+import { formatAllCodeLines, FormattedCodeLine } from '../utils/codeLayout';
 
 interface Props {
   lyrics: LyricLine[];
@@ -60,33 +60,43 @@ export const KineticCanvas: React.FC<Props> = ({
     return () => ro.disconnect();
   }, [virtualDims]);
 
-  // Sắp xếp danh sách lyrics theo thời gian
-  const sortedLyrics = useMemo(() => {
-    return [...lyrics].filter((l) => l.synced).sort((a, b) => a.startTime - b.startTime);
-  }, [lyrics]);
+  // Độ rộng có thể chứa code (sau khi trừ đi lề và cột số dòng/timestamp)
+  const maxCharsPerLine = useMemo(() => {
+    let gutterW = 16; // padding
+    if (options.showLineNumbers) gutterW += 28;
+    if (options.showTimestamps) gutterW += 68;
+    const availableW = virtualDims.width - gutterW - 20; // 20px padding right
+    const approxCharW = options.fontSize * 0.60;
+    return Math.max(16, Math.floor(availableW / approxCharW));
+  }, [virtualDims.width, options.showLineNumbers, options.showTimestamps, options.fontSize]);
+
+  // Định dạng và ngắt dòng code chuẩn hóa
+  const codeLines: FormattedCodeLine[] = useMemo(() => {
+    return formatAllCodeLines(lyrics, options.language, maxCharsPerLine);
+  }, [lyrics, options.language, maxCharsPerLine]);
 
   // Tìm vị trí dòng active
   const activeIndex = useMemo(() => {
-    for (let i = 0; i < sortedLyrics.length; i++) {
-      const line = sortedLyrics[i];
-      const nextLine = sortedLyrics[i + 1];
+    for (let i = 0; i < codeLines.length; i++) {
+      const line = codeLines[i];
+      const nextLine = codeLines[i + 1];
       const effectiveEnd = nextLine ? nextLine.startTime : (line.endTime > line.startTime ? line.endTime : line.startTime + 8);
       if (currentTime >= line.startTime && currentTime < effectiveEnd) {
         return i;
       }
     }
     return -1;
-  }, [sortedLyrics, currentTime]);
+  }, [codeLines, currentTime]);
 
-  const activeLine = activeIndex >= 0 ? sortedLyrics[activeIndex] : null;
+  const activeLine = activeIndex >= 0 ? codeLines[activeIndex] : null;
 
   // Tính số ký tự typewriter đang gõ của câu active
   const typedLength = useMemo(() => {
-    if (!activeLine || !options.typewriterEffect) return activeLine ? activeLine.text.length : 0;
+    if (!activeLine || !options.typewriterEffect) return activeLine ? activeLine.totalTextLength : 0;
     const duration = Math.max(0.6, (activeLine.endTime - activeLine.startTime) * 0.7);
     const elapsed = Math.max(0, currentTime - activeLine.startTime);
     const progress = Math.min(1, elapsed / duration);
-    return Math.floor(activeLine.text.length * progress);
+    return Math.floor(activeLine.totalTextLength * progress);
   }, [activeLine, currentTime, options.typewriterEffect]);
 
   // Icon ngôn ngữ ở tab
@@ -116,15 +126,27 @@ export const KineticCanvas: React.FC<Props> = ({
     }
   }, [options.cursorStyle]);
 
-  // Độ dịch chuyển cuộn để dòng active luôn ở khoảng giữa khung hình
-  const lineHeightPx = options.fontSize * (options.lineHeight || 1.6);
+  // Tính toán chiều cao từng dòng code và độ cuộn màn hình
+  const singleLineH = options.fontSize * (options.lineHeight || 1.6);
+  
+  // Vị trí Y tích lũy của từng dòng code
+  const linePositions = useMemo(() => {
+    const pos: { top: number; height: number }[] = [];
+    let currentY = 0;
+    codeLines.forEach((line) => {
+      const h = line.sublines.length * singleLineH + 6; // 6px padding
+      pos.push({ top: currentY, height: h });
+      currentY += h + 4; // 4px margin between lines
+    });
+    return pos;
+  }, [codeLines, singleLineH]);
+
   const scrollOffset = useMemo(() => {
-    if (activeIndex === -1) return 0;
-    // Căn activeIndex nằm ở vị trí 40% từ trên xuống
-    const targetY = activeIndex * lineHeightPx;
-    const windowCenter = virtualDims.height * 0.38;
-    return Math.max(0, targetY - windowCenter);
-  }, [activeIndex, lineHeightPx, virtualDims.height]);
+    if (activeIndex === -1 || !linePositions[activeIndex]) return 0;
+    const activePos = linePositions[activeIndex];
+    const windowCenter = virtualDims.height * 0.36;
+    return Math.max(0, activePos.top - windowCenter);
+  }, [activeIndex, linePositions, virtualDims.height]);
 
   return (
     <div
@@ -152,7 +174,7 @@ export const KineticCanvas: React.FC<Props> = ({
             transformOrigin: 'center center',
             backgroundColor: theme.bg,
             borderColor: theme.titleBarBorder,
-            fontFamily: `"${options.fontFamily}", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace`,
+            fontFamily: `"${options.fontFamily}", JetBrains Mono, Fira Code, monospace`,
           }}
         >
           {/* 1. IDE TITLE BAR & TABS */}
@@ -176,7 +198,7 @@ export const KineticCanvas: React.FC<Props> = ({
 
             {/* Center: File Tab */}
             <div
-              className="flex items-center space-x-1.5 px-3 py-1 rounded-md text-[11px] font-medium border"
+              className="flex items-center space-x-1.5 px-3 py-1 rounded-md text-[11px] font-medium border shadow-sm"
               style={{
                 backgroundColor: theme.tabActiveBg,
                 borderColor: theme.titleBarBorder,
@@ -193,7 +215,7 @@ export const KineticCanvas: React.FC<Props> = ({
               <span className="w-1.5 h-1.5 rounded-full bg-zinc-500 opacity-60" />
             </div>
 
-            {/* Right: Git Branch / Status */}
+            {/* Right: Git Branch */}
             <div
               className="text-[10px] font-mono opacity-60 flex items-center justify-end space-x-1 w-16"
               style={{ color: theme.titleBarText }}
@@ -229,7 +251,7 @@ export const KineticCanvas: React.FC<Props> = ({
                 transform: `translateY(-${scrollOffset}px)`,
               }}
             >
-              {sortedLyrics.length === 0 ? (
+              {codeLines.length === 0 ? (
                 <div
                   className="flex flex-col items-center justify-center py-20 text-xs font-mono opacity-40 text-center"
                   style={{ color: theme.gutterText }}
@@ -238,45 +260,22 @@ export const KineticCanvas: React.FC<Props> = ({
                   <p>// Gõ lời bài hát bên trái để bắt đầu</p>
                 </div>
               ) : (
-                sortedLyrics.map((line, idx) => {
+                codeLines.map((line, idx) => {
                   const isActive = idx === activeIndex;
                   const isPast = activeIndex > -1 && idx < activeIndex;
-                  const lineNum = (idx + 1).toString().padStart(2, '0');
-                  const timeFormatted = `[${formatTime(line.startTime)}]`;
 
-                  // Xử lý text hiển thị (typewriter cho active line)
-                  let displayText = line.text;
-                  if (isActive && options.typewriterEffect) {
-                    displayText = line.text.substring(0, typedLength);
-                  }
-
-                  // Cú pháp code theo từng ngôn ngữ
-                  let prefix = '';
-                  let suffix = '';
-                  if (options.language === 'typescript') {
-                    prefix = 'yield "';
-                    suffix = '";';
-                  } else if (options.language === 'python') {
-                    prefix = 'print("';
-                    suffix = '")';
-                  } else if (options.language === 'bash') {
-                    prefix = '$ echo "';
-                    suffix = '"';
-                  } else {
-                    prefix = '"';
-                    suffix = '"';
-                  }
+                  // Tính toán text hiển thị cho từng subline khi typewriter
+                  let remainingTyped = isActive && options.typewriterEffect ? typedLength : 9999;
 
                   return (
                     <div
                       key={line.id}
-                      className={`relative flex items-start transition-all duration-300 rounded-lg px-2 my-0.5 ${
+                      className={`relative flex items-start transition-all duration-300 rounded-lg px-2 py-1 my-0.5 ${
                         isActive ? 'shadow-sm' : ''
                       }`}
                       style={{
                         backgroundColor: isActive ? theme.activeLineBg : 'transparent',
                         borderLeft: isActive ? `3px solid ${theme.activeLineBorder}` : '3px solid transparent',
-                        lineHeight: `${lineHeightPx}px`,
                       }}
                     >
                       {/* Cột 1: Số thứ tự dòng */}
@@ -286,9 +285,10 @@ export const KineticCanvas: React.FC<Props> = ({
                           style={{
                             color: isActive ? theme.gutterActiveText : theme.gutterText,
                             fontWeight: isActive ? 700 : 400,
+                            lineHeight: `${singleLineH}px`,
                           }}
                         >
-                          {lineNum}
+                          {line.lineNumStr}
                         </span>
                       )}
 
@@ -300,60 +300,100 @@ export const KineticCanvas: React.FC<Props> = ({
                             color: isActive ? theme.activeTimestampColor : theme.timestampColor,
                             opacity: isActive ? 1 : 0.45,
                             fontWeight: isActive ? 600 : 400,
+                            lineHeight: `${singleLineH}px`,
                           }}
                         >
-                          {timeFormatted}
+                          {line.timestampStr}
                         </span>
                       )}
 
-                      {/* Cột 3: Nội dung Code / Lyrics */}
+                      {/* Cột 3: Khối Sublines của Code / Lyrics */}
                       <div
-                        className="flex-1 break-words font-mono transition-opacity duration-300"
+                        className="flex-1 font-mono transition-opacity duration-300 flex flex-col"
                         style={{
                           fontSize: `${options.fontSize}px`,
-                          opacity: isActive ? 1 : isPast ? 0.35 : 0.25,
+                          lineHeight: `${singleLineH}px`,
+                          opacity: isActive ? 1 : isPast ? 0.35 : 0.22,
                         }}
                       >
-                        {/* Keyword prefix */}
-                        <span
-                          className="font-semibold select-none"
-                          style={{ color: theme.keywordColor }}
-                        >
-                          {prefix}
-                        </span>
+                        {line.sublines.map((sub, sIdx) => {
+                          // Độ dài subline này
+                          const subLen = sub.text.length;
+                          let subTextToShow = sub.text;
+                          let showCursorHere = false;
 
-                        {/* Text string lyrics */}
-                        <span
-                          style={{
-                            color: isActive ? theme.stringColor : theme.inactiveStringColor,
-                            fontWeight: isActive ? 600 : 400,
-                            textShadow: isActive ? `0 0 16px ${theme.glowColor}` : 'none',
-                          }}
-                        >
-                          {displayText}
-                        </span>
+                          if (isActive && options.typewriterEffect) {
+                            if (remainingTyped <= 0) {
+                              subTextToShow = '';
+                            } else if (remainingTyped < subLen) {
+                              subTextToShow = sub.text.substring(0, remainingTyped);
+                              showCursorHere = true;
+                              remainingTyped = 0;
+                            } else {
+                              subTextToShow = sub.text;
+                              remainingTyped -= subLen;
+                              if (sub.isLast && remainingTyped >= 0) {
+                                showCursorHere = true;
+                              }
+                            }
+                          } else if (isActive && sub.isLast) {
+                            showCursorHere = true;
+                          }
 
-                        {/* Blinking Cursor khi là dòng active */}
-                        {isActive && (
-                          <span
-                            className="inline-block ml-0.5 font-bold"
-                            style={{
-                              color: theme.cursorColor,
-                              opacity: cursorVisible ? 1 : 0,
-                              textShadow: `0 0 8px ${theme.cursorColor}`,
-                            }}
-                          >
-                            {cursorChar}
-                          </span>
-                        )}
+                          return (
+                            <div key={sIdx} className="whitespace-pre flex items-center">
+                              {/* Dòng đầu: Prefix (yield ", print(", etc.) */}
+                              {sub.isFirst ? (
+                                <span
+                                  className="font-semibold select-none shrink-0"
+                                  style={{ color: theme.keywordColor }}
+                                >
+                                  {line.prefix}
+                                </span>
+                              ) : (
+                                /* Các dòng sau: khoảng thụt lề thụt vào đúng vị trí sau prefix */
+                                <span className="select-none shrink-0 opacity-0">
+                                  {line.prefix}
+                                </span>
+                              )}
 
-                        {/* Suffix */}
-                        <span
-                          className="font-semibold select-none"
-                          style={{ color: theme.punctuationColor }}
-                        >
-                          {suffix}
-                        </span>
+                              {/* Nội dung lời bài hát */}
+                              <span
+                                style={{
+                                  color: isActive ? theme.stringColor : theme.inactiveStringColor,
+                                  fontWeight: isActive ? 600 : 400,
+                                  textShadow: isActive ? `0 0 16px ${theme.glowColor}` : 'none',
+                                }}
+                              >
+                                {subTextToShow}
+                              </span>
+
+                              {/* Con trỏ nhấp nháy */}
+                              {showCursorHere && (
+                                <span
+                                  className="inline-block ml-0.5 font-bold"
+                                  style={{
+                                    color: theme.cursorColor,
+                                    opacity: cursorVisible ? 1 : 0,
+                                    textShadow: `0 0 8px ${theme.cursorColor}`,
+                                  }}
+                                >
+                                  {cursorChar}
+                                </span>
+                              )}
+
+                              {/* Dòng cuối: Suffix (";, "), etc.) */}
+                              {sub.isLast && (
+                                <span
+                                  className="font-semibold select-none shrink-0 ml-0.5"
+                                  style={{ color: theme.punctuationColor }}
+                                >
+                                  {line.suffix}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   );
