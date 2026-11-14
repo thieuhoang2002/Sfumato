@@ -94,3 +94,5 @@ npm run build
 ## 📄 Giấy Phép (License)
 
 Dự án được phân phối dưới giấy phép mã nguồn mở **MIT License**.
+
+<!-- verified: 2026-11 -->
